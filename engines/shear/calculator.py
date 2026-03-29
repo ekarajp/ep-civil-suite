@@ -19,7 +19,12 @@ from .inputs import ShearBeamInput, ShearDesignResult
 
 
 def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
-    """Design beam shear reinforcement with the current app logic."""
+    """Design beam shear reinforcement for the app's audited beam scope.
+
+    The implemented path follows the simplified beam-shear expressions used by
+    the current application, with ACI 318-19 size-effect and Vc,max handling
+    applied only to the 2019 code branch.
+    """
     geometry_results = calculate_beam_geometry(
         BeamGeometryInputData(
             geometry=input_data.geometry,
@@ -34,6 +39,7 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
     phi_shear = calculate_shear_phi(input_data.design_code)
     d_plus_cm = geometry_results.d_plus_cm
     sqrt_fc = math.sqrt(input_data.materials.concrete_strength_ksc)
+    # Base member-shear terms for the supported ACI beam branches.
     base_vc_kg = 0.53 * sqrt_fc * input_data.geometry.width_cm * d_plus_cm
     vs_max_kg = 2.1 * sqrt_fc * input_data.geometry.width_cm * d_plus_cm
     phi_vs_max_kg = phi_shear * vs_max_kg
@@ -198,4 +204,3 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
         section_change_note=section_change_note,
         review_note=review_note,
     )
-

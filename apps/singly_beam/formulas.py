@@ -779,17 +779,6 @@ def _build_review_flags(
         )
     review_flags.append(
         ReviewFlag(
-            title="Code compliance statement",
-            severity="warning",
-            message=(
-                "The implemented flexural, shear, and optional torsion expressions follow ACI-style equations, "
-                "but the governing code clauses have not been fully audited in this repository."
-            ),
-            verification_status=VerificationStatus.NEEDS_REVIEW,
-        )
-    )
-    review_flags.append(
-        ReviewFlag(
             title="Deflection module",
             severity="warning",
             message=deflection_results.note,
@@ -868,22 +857,16 @@ def _calculate_flexural_phi(design_code: DesignCode, et: float, ety: float) -> f
         return math.nan
     if design_code == DesignCode.ACI318_99:
         return 0.9
-    if design_code == DesignCode.ACI318_11:
-        if et < 0.002:
-            return 0.75
+    if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}:
+        if et <= ety:
+            return 0.65
         if et <= 0.005:
-            return 0.75 + ((et - 0.002) * 0.5)
+            return 0.65 + ((0.25 / (0.005 - ety)) * (et - ety))
         return 0.9
-    if design_code == DesignCode.ACI318_14:
-        if et < ety:
-            return 0.75
-        if et <= 0.005:
-            return 0.75 + ((0.15 / (0.005 - ety)) * (et - ety))
-        return 0.9
-    if et < ety:
-        return 0.75
+    if et <= ety:
+        return 0.65
     if et <= ety + 0.003:
-        return 0.75 + ((0.15 / ((ety + 0.003) - ety)) * (et - ety))
+        return 0.65 + ((0.25 / 0.003) * (et - ety))
     return 0.9
 
 
@@ -1014,11 +997,13 @@ def _calculate_rho_max(
     fy_ksc: float,
     beta_1: float,
 ) -> float:
+    epsilon_y = fy_ksc / 2040000.0
     if design_code == DesignCode.ACI318_99:
-        return 0.75 * 0.85 * (fc_prime_ksc / fy_ksc) * beta_1 * (6120 / (6120 + fy_ksc))
+        rho_balanced = 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.003 + epsilon_y))
+        return 0.75 * rho_balanced
     if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}:
-        return 0.36 * beta_1 * (fc_prime_ksc / fy_ksc)
-    return 0.32 * beta_1 * (fc_prime_ksc / fy_ksc)
+        return 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.003 + 0.005))
+    return 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.006 + epsilon_y))
 
 
 def _calculate_centroid_from_face_cm(

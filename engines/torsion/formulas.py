@@ -1,10 +1,10 @@
 """Torsion formula entry points.
 
-The detailed torsion formulas currently live in ``design.torsion``.
-TODO: Move the remaining clause-by-clause implementation fully into ``engines/torsion``.
+The detailed clause-by-clause torsion implementation currently lives in
+``design.torsion``. That path is the audited source of truth for the present
+rectangular nonprestressed beam torsion workflow.
 """
 
 from design.torsion import ACI_318_19_ALT_PROCEDURE_MESSAGE
 
 __all__ = ["ACI_318_19_ALT_PROCEDURE_MESSAGE"]
-

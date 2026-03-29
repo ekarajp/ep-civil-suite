@@ -9,6 +9,7 @@ from engines.common import (
     ReinforcementArrangementInput,
 )
 from engines.moment import MomentBeamInput, MomentDesignCase, design_moment_beam
+from engines.moment.formulas import calculate_flexural_phi, calculate_rho_max
 
 
 def _positive_compression() -> ReinforcementArrangementInput:
@@ -58,7 +59,7 @@ def test_design_moment_beam_matches_positive_default_behavior() -> None:
     assert results.as_required_cm2 == pytest.approx(3.383248620248353)
     assert results.as_provided_cm2 == pytest.approx(3.392920065876977)
     assert results.as_min_cm2 == pytest.approx(2.415)
-    assert results.as_max_cm2 == pytest.approx(11.260800000000001)
+    assert results.as_max_cm2 == pytest.approx(11.272067733990145)
     assert results.mn_kgm == pytest.approx(4456.506032607666)
     assert results.phi_mn_kgm == pytest.approx(4010.8554293468997)
     assert results.design_status == "PASS"
@@ -84,3 +85,28 @@ def test_design_moment_beam_supports_negative_legacy_case() -> None:
     assert results.as_required_cm2 > 0
     assert results.phi_mn_kgm > 0
 
+
+def test_aci318_14_flexural_phi_uses_0p65_to_0p90_transition() -> None:
+    phi = calculate_flexural_phi(DesignCode.ACI318_14, et=0.0035, ety=4000.0 / (2.04 * 10**6))
+
+    assert phi == pytest.approx(0.7766129032258065)
+
+
+def test_aci318_19_rho_max_depends_on_actual_fy() -> None:
+    rho_max_grade_4000 = calculate_rho_max(
+        DesignCode.ACI318_19,
+        fc_prime_ksc=240.0,
+        fy_ksc=4000.0,
+        beta_1=0.85,
+        es_ksc=2.04 * 10**6,
+    )
+    rho_max_grade_5000 = calculate_rho_max(
+        DesignCode.ACI318_19,
+        fc_prime_ksc=240.0,
+        fy_ksc=5000.0,
+        beta_1=0.85,
+        es_ksc=2.04 * 10**6,
+    )
+
+    assert rho_max_grade_4000 == pytest.approx(0.01633633004926108)
+    assert rho_max_grade_5000 < rho_max_grade_4000

@@ -80,7 +80,7 @@ def build_print_report_sections(inputs: BeamDesignInputSet, results: BeamDesignR
                 ReportRow(_sym_ec(), _format_default_ec_logic(), _material_substitution(results.materials.ec_mode.value, results.materials.ec_default_ksc, inputs.material_settings.ec.manual_value), format_number(results.materials.ec_ksc), "ksc", results.materials.ec_mode.value, _material_note(results.materials.ec_mode.value, results.materials.ec_default_logic)),
                 ReportRow(_sym_es(), _format_default_es_logic(), _material_substitution(results.materials.es_mode.value, results.materials.es_default_ksc, inputs.material_settings.es.manual_value), format_number(results.materials.es_ksc), "ksc", results.materials.es_mode.value, _material_note(results.materials.es_mode.value, results.materials.es_default_logic)),
                 ReportRow(_sym_fr(), _format_default_fr_logic(), _material_substitution(results.materials.fr_mode.value, results.materials.fr_default_ksc, inputs.material_settings.fr.manual_value), format_number(results.materials.modulus_of_rupture_fr_ksc), "ksc", results.materials.fr_mode.value, _material_note(results.materials.fr_mode.value, results.materials.fr_default_logic)),
-                ReportRow(_sym_beta1(), "-", f"{_sym_fc()} = {format_number(inputs.materials.concrete_strength_ksc)}", format_ratio(results.materials.beta_1), "-", note=VerificationStatus.NEEDS_REVIEW.value),
+                ReportRow(_sym_beta1(), "-", f"{_sym_fc()} = {format_number(inputs.materials.concrete_strength_ksc)}", format_ratio(results.materials.beta_1), "-", note=VerificationStatus.VERIFIED_CODE.value),
             ],
         ),
         ReportSection(
@@ -903,8 +903,8 @@ def _build_material_section(inputs: BeamDesignInputSet, results: BeamDesignResul
                 f"fc' = {inputs.materials.concrete_strength_ksc:.2f}",
                 format_ratio(results.materials.beta_1),
                 "-",
-                status=VerificationStatus.NEEDS_REVIEW.value,
-                note="Current ACI-style transition logic implemented. Manual clause check still recommended.",
+                status=VerificationStatus.VERIFIED_CODE.value,
+                note="ACI 318-99/11 10.2.7.3; ACI 318-14/19 22.2.2.4.3",
             ),
         ],
     )
@@ -1179,7 +1179,7 @@ def _build_full_material_section(inputs: BeamDesignInputSet, results: BeamDesign
             ReportRow(_sym_es(), "-", es_substitution.replace("E_s", _sym_es()), format_number(results.materials.es_ksc), "ksc", results.materials.es_mode.value),
             ReportRow(_sym_fr(), _format_default_fr_logic(), fr_substitution.replace("f_r", _sym_fr()).replace("f'c", _sym_fc()), format_number(results.materials.modulus_of_rupture_fr_ksc), "ksc", results.materials.fr_mode.value),
             ReportRow("n", f"n = {_sym_es()} / {_sym_ec()}", f"n = {format_number(results.materials.es_ksc)} / {format_number(results.materials.ec_ksc)}", format_ratio(results.materials.modular_ratio_n), "-", results.materials.ec_mode.value),
-            ReportRow(_sym_beta1(), "-", f"{_sym_beta1()} from {_sym_fc()} = {format_number(inputs.materials.concrete_strength_ksc)} ksc", format_ratio(results.materials.beta_1), "-", VerificationStatus.NEEDS_REVIEW.value),
+            ReportRow(_sym_beta1(), "-", f"{_sym_beta1()} from {_sym_fc()} = {format_number(inputs.materials.concrete_strength_ksc)} ksc", format_ratio(results.materials.beta_1), "-", VerificationStatus.VERIFIED_CODE.value),
         ],
     )
 

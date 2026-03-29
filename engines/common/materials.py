@@ -1,4 +1,12 @@
-"""Shared material input and derived material-property calculations."""
+"""Shared material input and derived material-property calculations.
+
+Clause basis used by the beam strength engines:
+- beta1: ACI 318-99/11 Section 10.2.7.3; ACI 318-14/19 Section 22.2.2.4.3
+
+The Ec and fr helpers remain the app's standard empirical material-property
+defaults. They are kept available for beam workflows, but deflection remains
+outside the current audit scope.
+"""
 
 from __future__ import annotations
 
@@ -100,7 +108,7 @@ def calculate_default_fr_ksc(fc_prime_ksc: float) -> float:
 
 
 def calculate_beta_1(fc_prime_ksc: float) -> float:
-    """Beta1 block factor used by flexural calculations."""
+    """Return beta1 for the rectangular concrete compression block."""
     if 0 < fc_prime_ksc <= 280:
         return 0.85
     return max(0.65, 0.85 - (0.05 * (fc_prime_ksc - 280) / 70))

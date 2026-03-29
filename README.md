@@ -184,3 +184,4 @@ results = design_torsion_beam(
 - `engines/moment` and `engines/shear` contain extracted reusable calculation logic.
 - `engines/torsion` is scaffolded as the public engine path and currently delegates to the existing torsion implementation under `design/torsion`.
 - The structure is prepared for future engines such as development length, columns, footings, and slabs.
+- The clause audit in this repository currently covers beam `moment`, `shear`, and `torsion` for the implemented rectangular nonprestressed scope. `Deflection` remains outside the current audit scope.

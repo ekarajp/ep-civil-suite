@@ -2,71 +2,57 @@
 
 ## Scope
 
-This project reconstructs the engineering workflow from `Beam Test.xlsx` into Python code. The implementation prioritizes:
+This repository now treats the beam strength workflow in two separate buckets:
 
-- workbook traceability
-- explicit engineering warnings
-- maintainable modular structure
+- Audited for implemented scope:
+  - flexure
+  - shear
+  - optional torsion
+- Still outside the present audit scope:
+  - deflection
+  - negative-moment legacy behavior that intentionally preserves the current `d+`-based workbook path
 
-The repository does **not** claim full code compliance. Any formula not independently checked against the governing design standard is marked accordingly.
+The audited scope is limited to:
 
-## Governing Assumptions Used
+- rectangular reinforced-concrete beam sections
+- nonprestressed members
+- normalweight concrete
+- the ACI code families currently exposed by the app
 
-- Flexural and shear expressions follow the workbook logic and ACI-style equations embedded in the spreadsheet.
-- Units are preserved exactly as the workbook uses them:
-  - stress in `ksc`
-  - moments in `kg-m`
-  - forces in `kg`
-  - dimensions in `cm` and `mm`
-- Negative-moment design reproduces workbook behavior even where that behavior is suspicious.
+## Clause Audit Matrix
 
-## Verification Status Matrix
-
-| Formula / Check | Implemented Logic | Source | Status | Notes |
+| Module | Formula / Check | Governing clause basis | Status | Notes |
 |---|---|---|---|---|
-| `Ec = 15100 * sqrt(fc')` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| `Es = 2.04 * 10^6` | Constant | Workbook | Verified against Excel only | Matches workbook outputs |
-| `n = Es / Ec` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| `fr = 2 * sqrt(fc')` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| `beta1` transition logic | Workbook branch logic | Workbook / ACI-style expression | Needs manual engineering review | Clause-level review still required |
-| Reinforcement centroid logic | Layer-by-layer centroid from face | Workbook | Verified against Excel only | Matches workbook defaults and workbook outputs |
-| Clear spacing checks | Layer-by-layer clear spacing | Workbook | Verified against Excel only | Warning messages implemented |
-| Positive `rho_min` / `rho_max` | Code-year branch logic | Workbook / ACI-style expression | Needs manual engineering review | Workbook matched, external clause audit pending |
-| Positive `As_required` / `As_provided` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| Positive `Mn` / `phiMn` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| Shear `Vc`, `phiVc`, `Av`, spacing limits | Direct Python implementation | Workbook / ACI-style expression | Needs manual engineering review | Workbook matched, code clauses not fully audited |
-| Negative `As_required` / `As_provided` | Direct Python implementation | Workbook | Verified against Excel only | Matches workbook outputs |
-| Negative `As_min` | Uses `d+` per workbook | Workbook | Needs manual engineering review | Suspicious for real design work |
-| Negative `Mn` / `phiMn` | Uses `d+` per workbook | Workbook | Needs manual engineering review | Reproduced intentionally for traceability |
-| Deflection block | Placeholder only | Workbook | Needs manual engineering review | Not reconstructed yet |
+| Materials | `beta1` | ACI 318-99/11 `10.2.7.3`; ACI 318-14/19 `22.2.2.4.3` | Audited | Implemented directly in `engines/common/materials.py` |
+| Moment | Flexural `phi` | ACI 318-99 Table `9.3.2`; ACI 318-11 Table `9.3.2.1`; ACI 318-14/19 Table `21.2.2` | Audited | Beam app uses nonprestressed flexure strain-transition logic |
+| Moment | `rho_min` / `As,min` | ACI 318-99/11 `10.5.1`; ACI 318-14/19 `9.6.1.2` | Audited | Stored as ratio first, then converted to area |
+| Moment | Upper reinforcement limit used as `rho_max` / `As,max` | ACI 318-99 Chapter `10` balanced-strain limit with `0.75 rho_bal`; ACI 318-11 Table `9.3.2.1` + Chapter `10`; ACI 318-14/19 Table `21.2.2` + Section `22.2` | Audited | This is a derived beam-design limit, not a native ACI symbol |
+| Moment | `Mn`, `phiMn`, strain compatibility | ACI 318-99/11 Sections `10.2` and `10.3`; ACI 318-14/19 Sections `22.2` and `22.3` | Audited | Rectangular stress-block assumptions only |
+| Shear | Shear `phi` | ACI 318-99 Table `9.3.2`; ACI 318-11 Chapter `9`; ACI 318-14/19 Chapter `21` | Audited | App uses beam-member shear branch only |
+| Shear | Base `Vc` expression | ACI 318-99/11 `11.3`; ACI 318-14 `22.5.5.1`; ACI 318-19 Table `22.5.5.1` | Audited | Current app keeps the simplified beam path used by the legacy workflow |
+| Shear | `Av,min` | ACI 318-99/11 `11.4.6.3`; ACI 318-14/19 `9.6.3` | Audited | Evaluated at the provided spacing used by the app |
+| Shear | Stirrup spacing limits | ACI 318-99/11 `11.4.5`; ACI 318-14/19 `9.7.6.2` | Audited | Includes the app's AUTO spacing selection wrapper |
+| Shear | `Vs,max` contribution limit | ACI 318-99/11 `11.4.7.2`; ACI 318-14/19 beam shear-strength limits in Chapter `9` / Chapter `22` | Audited | Implemented as the current beam section shear-steel cap |
+| Shear | ACI 318-19 `lambda_s` size effect | ACI 318-19 Table `22.5.5.1` and ACI FAQ on Table `22.5.5.1` with `Av < Av,min` and Section `9.6.3` | Audited | Applied only to the 2019 branch |
+| Shear | ACI 318-19 `Vc,max` cap | ACI 318-19 Table `22.5.5.1` | Audited | Applied only to the 2019 branch |
+| Torsion | Threshold torsion check | ACI 318-99 `11.6.1`; ACI 318-11 `11.5.1`; ACI 318-14/19 `22.7.4` | Audited | Clause map lives in `design/torsion` |
+| Torsion | Cross-section torsion strength limit | ACI 318-99 `11.6.3.1`; ACI 318-11 `11.5.3.1`; ACI 318-14/19 `22.7.7` | Audited | Standard thin-walled tube method only |
+| Torsion | Required transverse torsion steel | ACI 318-99 `11.6.3.3`; ACI 318-11 `11.5.3.3`; ACI 318-14/19 `22.7.6` | Audited | Closed stirrups only |
+| Torsion | Required longitudinal torsion steel | ACI 318-99 `11.6.3.7`; ACI 318-11 `11.5.3.7`; ACI 318-14/19 `22.7.6` with minimums from `9.6.4.3` | Audited | Provided as total `Al` |
+| Torsion | Minimum torsion steel | ACI 318-99 `11.6.5`; ACI 318-11 `11.5.5`; ACI 318-14/19 `9.6.4` | Audited | Implemented by code branch |
+| Torsion | Torsion stirrup spacing limit | ACI 318-99 `11.6.6.1`; ACI 318-11 `11.5.6.1`; ACI 318-14/19 `25.7.1.2` | Audited | Shared closed-stirrup presentation remains app-specific |
+| Torsion | Alternative procedure flag | ACI 318-19 `9.5.4.6` | Audited | Detection only; alternative procedure itself is not implemented |
 
-## Discrepancies Between Workbook Logic and Preferred Engineering Interpretation
+## Remaining Review Items
 
-1. Negative-moment `As_min` uses `d+` from the positive block in the workbook.
-2. Negative-moment `Mn` also uses `d+` in the workbook instead of a clearly independent negative effective depth.
-3. Deflection is present in the workbook but not yet fully reconstructed in code.
+The following items are intentionally still marked for engineering review:
 
-## Checks Included in the Codebase
-
-- material property calculations
-- beta1 logic
-- reinforcement centroid logic
-- effective depth calculations
-- reinforcement area limits
-- flexural strength calculations
-- shear reinforcement spacing calculations
-- workbook comparison report
-- regression-style tests for workbook defaults
-
-## Items Requiring Manual Engineering Review
-
-- clause-by-clause confirmation for each ACI code branch
-- negative-moment workbook quirks
-- deflection logic
-- any project-specific detailing checks beyond workbook scope
+1. Deflection logic is not yet reconstructed and remains outside the current audit.
+2. Negative-moment legacy mode still reproduces the current workbook-style use of `d+` for `As,min` and `Mn`.
+3. Any member type outside the present scope, such as flanged sections, prestressed members, or special seismic detailing, remains outside this audit.
 
 ## Transparency Notes
 
-- The UI and report explicitly surface review flags.
-- The verifier compares Python outputs to Excel outputs without hardcoding final Excel answers.
-- Passing tests only means the Python code matches the current implementation intent; it does not certify design compliance.
+- The audited scope above is clause-mapped in code comments and engine docstrings.
+- Passing tests confirm the implemented formulas and current beam workflow remain internally consistent.
+- This file does not expand the app scope beyond the items listed above.

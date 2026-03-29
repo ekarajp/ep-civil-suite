@@ -81,6 +81,7 @@ def design_moment_beam(input_data: MomentBeamInput) -> MomentDesignResult:
         input_data.materials.concrete_strength_ksc,
         input_data.materials.main_steel_yield_ksc,
         material_results.beta_1,
+        material_results.es_ksc,
     )
     as_required_cm2 = rho_required * input_data.geometry.width_cm * d_for_design_cm
     as_min_cm2 = rho_min * input_data.geometry.width_cm * as_min_depth_cm
