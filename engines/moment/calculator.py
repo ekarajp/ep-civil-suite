@@ -38,13 +38,10 @@ def design_moment_beam(input_data: MomentBeamInput) -> MomentDesignResult:
         d_for_design_cm = geometry_results.d_minus_cm
         if d_for_design_cm is None:
             raise ValueError("Negative bending geometry is not available for the selected moment design case.")
-        as_min_depth_cm = geometry_results.d_plus_cm
-        mn_depth_cm = geometry_results.d_plus_cm
+        as_min_depth_cm = d_for_design_cm
+        mn_depth_cm = d_for_design_cm
         first_tension_group = input_data.negative_tension_reinforcement.layer_1.group_a
-        review_note = (
-            "Negative-moment block currently uses d+ for As_min and Mn rather than d-. "
-            "Manual engineering review is required before using this result for issued design documents."
-        )
+        review_note = ""
 
     as_provided_cm2 = tension_reinforcement.total_area_cm2
     rho_provided = safe_divide(as_provided_cm2, input_data.geometry.width_cm * d_for_design_cm)

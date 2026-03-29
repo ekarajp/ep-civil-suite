@@ -337,22 +337,24 @@ def test_negative_bending_matches_current_negative_logic() -> None:
         inputs,
     )
 
-    assert results.as_required_cm2 == pytest.approx(5.2177444959509245)
+    assert results.as_required_cm2 == pytest.approx(5.253522874809101)
     assert results.as_provided_cm2 == pytest.approx(6.031857894892403)
-    assert results.as_min_cm2 == pytest.approx(2.415)
-    assert results.as_max_cm2 == pytest.approx(11.272067733990145)
-    assert results.mn_kgm == pytest.approx(7610.565666242187)
-    assert results.phi_mn_kgm == pytest.approx(6849.509099617969)
-    assert results.ratio == pytest.approx(0.875975184898236)
-    assert "d+" in results.review_note
+    assert results.as_min_cm2 == pytest.approx(2.4010000000000002)
+    assert results.as_max_cm2 == pytest.approx(11.2067224137931)
+    assert results.mn_kgm == pytest.approx(7562.310803083047)
+    assert results.phi_mn_kgm == pytest.approx(6806.079722774743)
+    assert results.ratio == pytest.approx(0.8815647545124383)
+    assert results.review_note == ""
 
 
 def test_full_results_expose_review_flags_and_overall_status() -> None:
     results = calculate_full_design_results(BeamDesignInputSet())
 
     assert results.overall_status == "PASS WITH REVIEW"
-    assert len(results.review_flags) >= 1
-    assert any(flag.title == "Deflection module" for flag in results.review_flags)
+    assert len(results.review_flags) == 1
+    assert results.review_flags[0].title == "Deflection module"
+    assert results.review_flags[0].severity == "warning"
+    assert "Deflection logic has not been fully reconstructed into code yet" in results.review_flags[0].message
 
 
 def test_simple_beam_omits_negative_results() -> None:

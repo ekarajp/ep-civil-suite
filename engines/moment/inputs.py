@@ -16,7 +16,12 @@ from engines.common.validation import validate_non_negative, validate_positive
 
 
 class MomentDesignCase(str, Enum):
-    """Moment-design mode used by the current beam applications."""
+    """Moment-design mode used by the current beam applications.
+
+    ``NEGATIVE_LEGACY`` is kept as the public enum name for compatibility with
+    existing app imports, even though the negative flexural path now uses the
+    audited negative-beam effective depth consistently.
+    """
 
     POSITIVE = "positive"
     NEGATIVE_LEGACY = "negative_legacy"
@@ -69,4 +74,3 @@ class MomentDesignResult:
     ratio_status: str
     design_status: str
     review_note: str = ""
-

@@ -65,7 +65,7 @@ def test_design_moment_beam_matches_positive_default_behavior() -> None:
     assert results.design_status == "PASS"
 
 
-def test_design_moment_beam_supports_negative_legacy_case() -> None:
+def test_design_moment_beam_supports_negative_case_with_audited_d_minus_path() -> None:
     results = design_moment_beam(
         MomentBeamInput(
             design_code=DesignCode.ACI318_19,
@@ -81,9 +81,11 @@ def test_design_moment_beam_supports_negative_legacy_case() -> None:
         )
     )
 
-    assert results.review_note
-    assert results.as_required_cm2 > 0
-    assert results.phi_mn_kgm > 0
+    assert results.as_required_cm2 == pytest.approx(5.253522874809101)
+    assert results.as_min_cm2 == pytest.approx(2.4010000000000002)
+    assert results.as_max_cm2 == pytest.approx(11.2067224137931)
+    assert results.phi_mn_kgm == pytest.approx(6806.079722774743)
+    assert results.review_note == ""
 
 
 def test_aci318_14_flexural_phi_uses_0p65_to_0p90_transition() -> None:

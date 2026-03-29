@@ -10,7 +10,6 @@ This repository now treats the beam strength workflow in two separate buckets:
   - optional torsion
 - Still outside the present audit scope:
   - deflection
-  - negative-moment legacy behavior that intentionally preserves the current `d+`-based workbook path
 
 The audited scope is limited to:
 
@@ -48,8 +47,7 @@ The audited scope is limited to:
 The following items are intentionally still marked for engineering review:
 
 1. Deflection logic is not yet reconstructed and remains outside the current audit.
-2. Negative-moment legacy mode still reproduces the current workbook-style use of `d+` for `As,min` and `Mn`.
-3. Any member type outside the present scope, such as flanged sections, prestressed members, or special seismic detailing, remains outside this audit.
+2. Any member type outside the present scope, such as flanged sections, prestressed members, or special seismic detailing, remains outside this audit.
 
 ## Transparency Notes
 

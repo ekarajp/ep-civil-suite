@@ -768,15 +768,6 @@ def _build_review_flags(
     deflection_results: DeflectionCheckResults,
 ) -> list[ReviewFlag]:
     review_flags: list[ReviewFlag] = []
-    if negative_results is not None and negative_results.review_note:
-        review_flags.append(
-            ReviewFlag(
-                title="Negative moment alignment",
-                severity="warning",
-                message=negative_results.review_note,
-                verification_status=VerificationStatus.NEEDS_REVIEW,
-            )
-        )
     review_flags.append(
         ReviewFlag(
             title="Deflection module",
