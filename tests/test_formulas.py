@@ -22,6 +22,7 @@ from apps.singly_beam.models import (
     ShearDesignInput,
     ShearSpacingMode,
 )
+from design.torsion import TorsionDemandType, TorsionDesignCode, TorsionDesignInput
 
 
 def test_rebar_group_rejects_incomplete_definition() -> None:
@@ -254,6 +255,77 @@ def test_shear_flags_when_section_size_must_be_increased() -> None:
     assert results.design_status == "FAIL"
     assert results.section_change_required is True
     assert "Increase the beam section" in results.section_change_note
+
+
+def test_auto_spacing_is_recomputed_from_combined_shear_and_torsion_demand() -> None:
+    inputs = BeamDesignInputSet(
+        torsion=TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=500.0,
+            design_code=TorsionDesignCode.ACI318_19,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=4,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+
+    results = calculate_full_design_results(inputs)
+
+    assert results.combined_shear_torsion.active is True
+    assert results.combined_shear_torsion.spacing_limit_reason == "Torsion maximum stirrup spacing"
+    assert results.combined_shear_torsion.required_spacing_cm == pytest.approx(10.55)
+    assert results.shear.provided_spacing_cm == pytest.approx(10.0)
+    assert results.combined_shear_torsion.stirrup_spacing_cm == pytest.approx(10.0)
+
+
+def test_manual_spacing_can_fail_combined_shear_and_torsion_spacing_limit() -> None:
+    inputs = BeamDesignInputSet(
+        shear=ShearDesignInput(
+            factored_shear_kg=5000.0,
+            stirrup_diameter_mm=9,
+            legs_per_plane=2,
+            spacing_mode=ShearSpacingMode.MANUAL,
+            provided_spacing_cm=15.0,
+        ),
+        torsion=TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=500.0,
+            design_code=TorsionDesignCode.ACI318_19,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=4,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        ),
+    )
+
+    results = calculate_full_design_results(inputs)
+
+    assert results.combined_shear_torsion.active is True
+    assert results.combined_shear_torsion.required_spacing_cm == pytest.approx(10.55)
+    assert results.combined_shear_torsion.stirrup_spacing_cm == pytest.approx(15.0)
+    assert results.combined_shear_torsion.design_status == "FAIL"
+
+
+def test_passing_torsion_design_does_not_trigger_requirement_status_from_basis_note() -> None:
+    inputs = BeamDesignInputSet(
+        beam_type=BeamType.SIMPLE,
+        torsion=TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=500.0,
+            design_code=TorsionDesignCode.ACI318_19,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=4,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        ),
+    )
+
+    results = calculate_full_design_results(inputs)
+
+    assert results.combined_shear_torsion.active is True
+    assert results.combined_shear_torsion.design_status == "PASS"
+    assert results.overall_status != "DOES NOT MEET REQUIREMENTS"
 
 
 def test_negative_bending_matches_current_negative_logic() -> None:

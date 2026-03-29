@@ -1,5 +1,24 @@
-from apps.singly_beam.models import BeamDesignInputSet, RebarGroupInput, RebarLayerInput
-from apps.singly_beam.visualization import STIRRUP_DRAWING_COLOR, build_beam_section_svg, build_section_rebar_details, compute_bar_points, ordered_layer_bars
+import pytest
+
+from apps.singly_beam.models import (
+    BeamDesignInputSet,
+    BeamGeometryInput,
+    PositiveBendingInput,
+    RebarGroupInput,
+    RebarLayerInput,
+    ReinforcementArrangementInput,
+)
+from apps.singly_beam.visualization import (
+    STIRRUP_DRAWING_COLOR,
+    build_beam_section_svg,
+    build_section_rebar_details,
+    compute_bar_points,
+    compute_torsion_side_bar_points,
+    torsion_bar_drawable_capacity,
+    torsion_bar_spacing_warning,
+    ordered_layer_bars,
+)
+from design.torsion import TorsionDesignInput
 from core.theme import LIGHT_THEME
 
 
@@ -87,3 +106,129 @@ def test_section_svg_uses_blue_stirrup_line() -> None:
     svg = build_beam_section_svg(inputs, LIGHT_THEME, "positive")
 
     assert f'stroke="{STIRRUP_DRAWING_COLOR}"' in svg
+
+
+def test_torsion_surface_bars_use_side_faces_first_then_top_bottom_if_needed() -> None:
+    inputs = BeamDesignInputSet(
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=5,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+
+    bars = compute_torsion_side_bar_points(inputs)
+    details = build_section_rebar_details(inputs, "positive", stirrup_spacing_cm=15.0)
+
+    left_bars = [bar for bar in bars if bar.group_name == "left"]
+    right_bars = [bar for bar in bars if bar.group_name == "right"]
+    top_bottom_bars = [bar for bar in bars if bar.group_name in {"top", "bottom"}]
+
+    assert abs(len(left_bars) - len(right_bars)) <= 1
+    assert len(bars) == 5
+    assert len(left_bars) + len(right_bars) >= 4
+    assert len(top_bottom_bars) <= 1
+    left_spacings = [left_bars[index + 1].y_cm - left_bars[index].y_cm for index in range(len(left_bars) - 1)]
+    right_spacings = [right_bars[index + 1].y_cm - right_bars[index].y_cm for index in range(len(right_bars) - 1)]
+    if left_spacings:
+        assert max(left_spacings) - min(left_spacings) <= 1e-6
+    if right_spacings:
+        assert max(right_spacings) - min(right_spacings) <= 1e-6
+    assert details.torsion_side_lines[0].startswith("Left face:")
+    assert details.torsion_side_lines[1].startswith("Right face:")
+
+
+def test_torsion_spacing_warning_reports_when_section_bars_are_too_close() -> None:
+    crowded_arrangement = ReinforcementArrangementInput(
+        layer_1=RebarLayerInput(
+            group_a=RebarGroupInput(diameter_mm=20, count=2),
+            group_b=RebarGroupInput(diameter_mm=20, count=3),
+        )
+    )
+    inputs = BeamDesignInputSet(
+        geometry=BeamGeometryInput(width_cm=20.0, depth_cm=40.0, cover_cm=4.0, minimum_clear_spacing_cm=2.5),
+        positive_bending=PositiveBendingInput(
+            factored_moment_kgm=4000.0,
+            compression_reinforcement=crowded_arrangement,
+            tension_reinforcement=crowded_arrangement,
+        ),
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=5,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        ),
+    )
+
+    warning = torsion_bar_spacing_warning(inputs)
+
+    assert "minimum clear spacing requirement" in warning
+
+
+def test_torsion_layout_stops_at_maximum_drawable_al_bar_count() -> None:
+    inputs = BeamDesignInputSet(
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=14,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+
+    bars = compute_torsion_side_bar_points(inputs)
+    details = build_section_rebar_details(inputs, "positive", stirrup_spacing_cm=15.0)
+
+    assert len(bars) < 14
+    assert "Reached maximum Al bar count" in details.torsion_warning
+
+
+def test_torsion_drawable_capacity_reduces_when_upper_and_lower_layers_are_added() -> None:
+    base_inputs = BeamDesignInputSet(
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=1,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+    layered_inputs = BeamDesignInputSet(
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=1,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+    layered_inputs.positive_bending.compression_reinforcement.layer_2.group_a = RebarGroupInput(diameter_mm=16, count=2)
+    layered_inputs.positive_bending.compression_reinforcement.layer_3.group_a = RebarGroupInput(diameter_mm=16, count=2)
+    layered_inputs.positive_bending.tension_reinforcement.layer_2.group_a = RebarGroupInput(diameter_mm=16, count=2)
+    layered_inputs.positive_bending.tension_reinforcement.layer_3.group_a = RebarGroupInput(diameter_mm=16, count=2)
+
+    assert torsion_bar_drawable_capacity(layered_inputs) < torsion_bar_drawable_capacity(base_inputs)
+
+
+def test_torsion_side_bar_spacing_stays_equal_with_multiple_longitudinal_layers() -> None:
+    inputs = BeamDesignInputSet(
+        geometry=BeamGeometryInput(width_cm=20.0, depth_cm=50.0, cover_cm=4.0, minimum_clear_spacing_cm=2.5),
+        torsion=TorsionDesignInput(
+            enabled=True,
+            provided_longitudinal_bar_diameter_mm=16,
+            provided_longitudinal_bar_count=4,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        )
+    )
+    inputs.positive_bending.tension_reinforcement.layer_2.group_a = RebarGroupInput(diameter_mm=16, count=2)
+    inputs.positive_bending.tension_reinforcement.layer_3.group_a = RebarGroupInput(diameter_mm=16, count=2)
+
+    bars = compute_torsion_side_bar_points(inputs)
+
+    left_bars = sorted((bar for bar in bars if bar.group_name == "left"), key=lambda bar: bar.y_cm)
+    right_bars = sorted((bar for bar in bars if bar.group_name == "right"), key=lambda bar: bar.y_cm)
+    left_spacings = [left_bars[index + 1].y_cm - left_bars[index].y_cm for index in range(len(left_bars) - 1)]
+    right_spacings = [right_bars[index + 1].y_cm - right_bars[index].y_cm for index in range(len(right_bars) - 1)]
+
+    assert left_spacings
+    assert right_spacings
+    assert max(left_spacings) - min(left_spacings) <= 1e-6
+    assert max(right_spacings) - min(right_spacings) <= 1e-6

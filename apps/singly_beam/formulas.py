@@ -2,11 +2,43 @@ from __future__ import annotations
 
 import math
 
+from design.torsion import (
+    TorsionDesignResults,
+    TorsionDesignMaterialInput,
+    TorsionSectionGeometryInput,
+)
+from engines.common import (
+    DEFAULT_EC_LOGIC as ENGINE_DEFAULT_EC_LOGIC,
+    DEFAULT_ES_LOGIC as ENGINE_DEFAULT_ES_LOGIC,
+    DEFAULT_FR_LOGIC as ENGINE_DEFAULT_FR_LOGIC,
+    BeamGeometryInputData as EngineBeamGeometryInputData,
+    BeamSectionInput as EngineBeamSectionInput,
+    DesignCode as EngineDesignCode,
+    MaterialPropertiesInput as EngineMaterialPropertiesInput,
+    MaterialPropertyMode as EngineMaterialPropertyMode,
+    MaterialPropertySetting as EngineMaterialPropertySetting,
+    MaterialPropertySettings as EngineMaterialPropertySettings,
+    RebarGroupInput as EngineRebarGroupInput,
+    RebarLayerInput as EngineRebarLayerInput,
+    ReinforcementArrangementInput as EngineReinforcementArrangementInput,
+    ShearSpacingMode as EngineShearSpacingMode,
+    calculate_beam_geometry as calculate_engine_beam_geometry,
+    calculate_default_ec_ksc as calculate_engine_default_ec_ksc,
+    calculate_default_es_ksc as calculate_engine_default_es_ksc,
+    calculate_default_fr_ksc as calculate_engine_default_fr_ksc,
+    calculate_material_properties as calculate_engine_material_properties,
+    calculate_reinforcement_spacing as calculate_engine_reinforcement_spacing,
+)
+from engines.moment import MomentBeamInput, MomentDesignCase, design_moment_beam
+from engines.shear import ShearBeamInput, design_shear_beam
+from engines.torsion import TorsionBeamInput, design_torsion_beam
+
 from .models import (
     BeamDesignInputSet,
     BeamDesignResults,
     BeamGeometryInput,
     BeamGeometryResults,
+    CombinedShearTorsionResults,
     DeflectionCheckInput,
     DeflectionCheckResults,
     DesignCode,
@@ -31,56 +63,34 @@ from .models import (
 
 
 ECU = 0.003
-ES_KSC = 2.04 * (10**6)
-DEFAULT_EC_LOGIC = "Ec = 15100 * sqrt(fc')"
-DEFAULT_ES_LOGIC = "Es = 2.04 * 10^6"
-DEFAULT_FR_LOGIC = "fr = 2 * sqrt(fc')"
+DEFAULT_EC_LOGIC = ENGINE_DEFAULT_EC_LOGIC
+DEFAULT_ES_LOGIC = ENGINE_DEFAULT_ES_LOGIC
+DEFAULT_FR_LOGIC = ENGINE_DEFAULT_FR_LOGIC
+ES_KSC = calculate_engine_default_es_ksc()
 AUTO_SHEAR_SPACING_INCREMENT_CM = 2.5
 
 
 def calculate_default_ec_ksc(fc_prime_ksc: float) -> float:
-    return 15100 * math.sqrt(fc_prime_ksc)
+    return calculate_engine_default_ec_ksc(fc_prime_ksc)
 
 
 def calculate_default_es_ksc() -> float:
-    return ES_KSC
+    return calculate_engine_default_es_ksc()
 
 
 def calculate_default_fr_ksc(fc_prime_ksc: float) -> float:
-    return 2 * math.sqrt(fc_prime_ksc)
+    return calculate_engine_default_fr_ksc(fc_prime_ksc)
 
 
 def calculate_material_properties(
     materials: MaterialPropertiesInput,
     material_settings: MaterialPropertySettings | None = None,
 ) -> MaterialResults:
-    concrete_strength = materials.concrete_strength_ksc
-    settings = material_settings or MaterialPropertySettings()
-    ec_default_ksc = calculate_default_ec_ksc(concrete_strength)
-    es_default_ksc = calculate_default_es_ksc()
-    fr_default_ksc = calculate_default_fr_ksc(concrete_strength)
-    ec_ksc = ec_default_ksc if settings.ec.mode == MaterialPropertyMode.DEFAULT else _manual_property_value(settings.ec.manual_value)
-    es_ksc = es_default_ksc if settings.es.mode == MaterialPropertyMode.DEFAULT else _manual_property_value(settings.es.manual_value)
-    fr_ksc = fr_default_ksc if settings.fr.mode == MaterialPropertyMode.DEFAULT else _manual_property_value(settings.fr.manual_value)
-    return MaterialResults(
-        fc_prime_ksc=concrete_strength,
-        fy_ksc=materials.main_steel_yield_ksc,
-        fvy_ksc=materials.shear_steel_yield_ksc,
-        ec_ksc=ec_ksc,
-        es_ksc=es_ksc,
-        modular_ratio_n=_safe_divide(es_ksc, ec_ksc),
-        modulus_of_rupture_fr_ksc=fr_ksc,
-        beta_1=_calculate_beta_1(concrete_strength),
-        ec_mode=settings.ec.mode,
-        es_mode=settings.es.mode,
-        fr_mode=settings.fr.mode,
-        ec_default_ksc=ec_default_ksc,
-        es_default_ksc=es_default_ksc,
-        fr_default_ksc=fr_default_ksc,
-        ec_default_logic=DEFAULT_EC_LOGIC,
-        es_default_logic=DEFAULT_ES_LOGIC,
-        fr_default_logic=DEFAULT_FR_LOGIC,
+    engine_results = calculate_engine_material_properties(
+        _to_engine_materials(materials),
+        _to_engine_material_settings(material_settings or MaterialPropertySettings()),
     )
+    return _to_app_material_results(engine_results)
 
 
 def calculate_reinforcement_spacing(
@@ -88,61 +98,12 @@ def calculate_reinforcement_spacing(
     reinforcement: ReinforcementArrangementInput,
     stirrup_diameter_mm: int,
 ) -> ReinforcementSpacingResults:
-    layer_results: list[LayerSpacingResult] = []
-    overall_status = "OK"
-
-    for layer_index, layer in enumerate(reinforcement.layers(), start=1):
-        diameters_cm = [_group_diameter_cm(group) for group in layer.groups()]
-        total_bars = layer.total_bars
-        spacing_cm = _calculate_layer_spacing_cm(geometry, layer, stirrup_diameter_mm)
-
-        required_spacing_cm: float | None
-        status: str
-        message = ""
-        if total_bars == 0:
-            required_spacing_cm = None
-            spacing_value = None
-            status = "N/A"
-        elif total_bars == 1:
-            required_spacing_cm = None
-            spacing_value = None
-            status = "OK"
-            message = "Single bar in layer; clear spacing check is not governing."
-        else:
-            required_spacing_cm = max(
-                geometry.minimum_clear_spacing_cm,
-                diameters_cm[0],
-                diameters_cm[1],
-            )
-            spacing_value = spacing_cm
-            status = "OK" if spacing_cm >= required_spacing_cm else "NOT OK"
-            if status == "NOT OK":
-                message = (
-                    f"Provided clear spacing {spacing_cm:.2f} cm is less than "
-                    f"required {required_spacing_cm:.2f} cm."
-                )
-                overall_status = "NOT OK"
-
-        layer_results.append(
-            LayerSpacingResult(
-                layer_index=layer_index,
-                group_a_diameter_mm=layer.group_a.diameter_mm,
-                group_a_count=layer.group_a.count,
-                group_b_diameter_mm=layer.group_b.diameter_mm,
-                group_b_count=layer.group_b.count,
-                spacing_cm=spacing_value,
-                required_spacing_cm=required_spacing_cm,
-                status=status,
-                message=message,
-            )
-        )
-
-    return ReinforcementSpacingResults(
-        layer_1=layer_results[0],
-        layer_2=layer_results[1],
-        layer_3=layer_results[2],
-        overall_status=overall_status,
+    engine_results = calculate_engine_reinforcement_spacing(
+        _to_engine_geometry(geometry),
+        _to_engine_reinforcement(reinforcement),
+        stirrup_diameter_mm,
     )
+    return _to_app_spacing_results(engine_results)
 
 
 def calculate_beam_geometry(
@@ -153,74 +114,18 @@ def calculate_beam_geometry(
     *,
     include_negative: bool = True,
 ) -> BeamGeometryResults:
-    cover_plus_stirrup_cm = geometry.cover_cm + _diameter_cm(shear.stirrup_diameter_mm)
-
-    positive_compression_centroid_cm = _calculate_centroid_from_face_cm(
-        geometry,
-        positive_bending.compression_reinforcement,
-        shear.stirrup_diameter_mm,
-        denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)),
+    engine_results = calculate_engine_beam_geometry(
+        EngineBeamGeometryInputData(
+            geometry=_to_engine_geometry(geometry),
+            positive_compression_reinforcement=_to_engine_reinforcement(positive_bending.compression_reinforcement),
+            positive_tension_reinforcement=_to_engine_reinforcement(positive_bending.tension_reinforcement),
+            stirrup_diameter_mm=shear.stirrup_diameter_mm,
+            negative_compression_reinforcement=_to_engine_reinforcement(negative_bending.compression_reinforcement),
+            negative_tension_reinforcement=_to_engine_reinforcement(negative_bending.tension_reinforcement),
+            include_negative=include_negative,
+        )
     )
-    positive_tension_centroid_from_bottom_cm = _calculate_centroid_from_face_cm(
-        geometry,
-        positive_bending.tension_reinforcement,
-        shear.stirrup_diameter_mm,
-        denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1)),
-    )
-
-    negative_compression_centroid_cm: float | None = None
-    negative_tension_centroid_from_top_cm: float | None = None
-    d_minus_cm: float | None = None
-    negative_compression_spacing: ReinforcementSpacingResults | None = None
-    negative_tension_spacing: ReinforcementSpacingResults | None = None
-    if include_negative:
-        negative_compression_centroid_cm = _calculate_centroid_from_face_cm(
-            geometry,
-            negative_bending.compression_reinforcement,
-            shear.stirrup_diameter_mm,
-            denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)),
-        )
-        negative_tension_centroid_from_top_cm = _calculate_centroid_from_face_cm(
-            geometry,
-            negative_bending.tension_reinforcement,
-            shear.stirrup_diameter_mm,
-            denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1)),
-        )
-        d_minus_cm = geometry.depth_cm - positive_compression_centroid_cm
-        negative_compression_spacing = calculate_reinforcement_spacing(
-            geometry,
-            negative_bending.compression_reinforcement,
-            shear.stirrup_diameter_mm,
-        )
-        negative_tension_spacing = calculate_reinforcement_spacing(
-            geometry,
-            negative_bending.tension_reinforcement,
-            shear.stirrup_diameter_mm,
-        )
-
-    return BeamGeometryResults(
-        section_area_cm2=geometry.width_cm * geometry.depth_cm,
-        gross_moment_of_inertia_cm4=geometry.width_cm * (geometry.depth_cm**3) / 12,
-        cover_plus_stirrup_cm=cover_plus_stirrup_cm,
-        positive_compression_centroid_d_prime_cm=positive_compression_centroid_cm,
-        positive_tension_centroid_from_bottom_d_cm=positive_tension_centroid_from_bottom_cm,
-        negative_compression_centroid_from_bottom_cm=negative_compression_centroid_cm,
-        negative_tension_centroid_from_top_cm=negative_tension_centroid_from_top_cm,
-        d_plus_cm=geometry.depth_cm - positive_tension_centroid_from_bottom_cm,
-        d_minus_cm=d_minus_cm,
-        positive_compression_spacing=calculate_reinforcement_spacing(
-            geometry,
-            positive_bending.compression_reinforcement,
-            shear.stirrup_diameter_mm,
-        ),
-        positive_tension_spacing=calculate_reinforcement_spacing(
-            geometry,
-            positive_bending.tension_reinforcement,
-            shear.stirrup_diameter_mm,
-        ),
-        negative_compression_spacing=negative_compression_spacing,
-        negative_tension_spacing=negative_tension_spacing,
-    )
+    return _to_app_beam_geometry_results(engine_results)
 
 
 def calculate_positive_bending_design(
@@ -229,84 +134,22 @@ def calculate_positive_bending_design(
     positive_bending: PositiveBendingInput,
     design_inputs: BeamDesignInputSet,
 ) -> FlexuralDesignResults:
-    material_results = calculate_material_properties(materials, design_inputs.material_settings)
-    geometry_results = calculate_beam_geometry(
-        geometry,
-        design_inputs.positive_bending,
-        design_inputs.negative_bending,
-        design_inputs.shear,
-        include_negative=design_inputs.has_negative_design,
+    engine_results = design_moment_beam(
+        MomentBeamInput(
+            design_code=_to_engine_design_code(design_inputs.metadata.design_code),
+            materials=_to_engine_materials(materials),
+            geometry=_to_engine_geometry(geometry),
+            stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+            factored_moment_kgm=positive_bending.factored_moment_kgm,
+            positive_compression_reinforcement=_to_engine_reinforcement(positive_bending.compression_reinforcement),
+            positive_tension_reinforcement=_to_engine_reinforcement(positive_bending.tension_reinforcement),
+            negative_compression_reinforcement=_to_engine_reinforcement(design_inputs.negative_bending.compression_reinforcement),
+            negative_tension_reinforcement=_to_engine_reinforcement(design_inputs.negative_bending.tension_reinforcement),
+            material_settings=_to_engine_material_settings(design_inputs.material_settings),
+            design_case=MomentDesignCase.POSITIVE,
+        )
     )
-    d_plus_cm = geometry_results.d_plus_cm
-    as_provided_cm2 = positive_bending.tension_reinforcement.total_area_cm2
-    rho_provided = _safe_divide(as_provided_cm2, geometry.width_cm * d_plus_cm)
-    a_cm = _safe_divide(
-        as_provided_cm2 * materials.main_steel_yield_ksc,
-        0.85 * materials.concrete_strength_ksc * geometry.width_cm,
-    )
-    c_cm = _safe_divide(a_cm, material_results.beta_1)
-    dt_cm = (
-        geometry.depth_cm
-        - geometry.cover_cm
-        - _diameter_cm(design_inputs.shear.stirrup_diameter_mm)
-        - (_group_diameter_cm(positive_bending.tension_reinforcement.layer_1.group_a) / 2)
-    )
-    ety = _safe_divide(materials.main_steel_yield_ksc, material_results.es_ksc)
-    et = _safe_divide(ECU * (dt_cm - c_cm), c_cm)
-    phi = _calculate_flexural_phi(design_inputs.metadata.design_code, et, ety)
-    ru_kg_per_cm2 = _safe_divide(
-        positive_bending.factored_moment_kgm * 100,
-        phi * geometry.width_cm * (d_plus_cm**2),
-    )
-    rho_required = _calculate_rho_required(
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-        ru_kg_per_cm2,
-    )
-    rho_min = _calculate_rho_min(
-        design_inputs.metadata.design_code,
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-    )
-    rho_max = _calculate_rho_max(
-        design_inputs.metadata.design_code,
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-        material_results.beta_1,
-    )
-    as_required_cm2 = rho_required * geometry.width_cm * d_plus_cm
-    as_min_cm2 = rho_min * geometry.width_cm * d_plus_cm
-    as_max_cm2 = rho_max * geometry.width_cm * d_plus_cm
-    mn_kgm = as_provided_cm2 * materials.main_steel_yield_ksc * (d_plus_cm - (a_cm / 2)) / 100
-    phi_mn_kgm = mn_kgm * phi
-    ratio = _safe_divide(positive_bending.factored_moment_kgm, phi_mn_kgm)
-    as_status = _calculate_as_status(rho_provided, rho_min, rho_max)
-    ratio_status = "OK" if phi_mn_kgm >= positive_bending.factored_moment_kgm else "NOT OK"
-    design_status = "PASS" if as_status == "OK" and ratio_status == "OK" else "FAIL"
-
-    return FlexuralDesignResults(
-        phi=phi,
-        ru_kg_per_cm2=ru_kg_per_cm2,
-        rho_required=rho_required,
-        as_required_cm2=as_required_cm2,
-        as_provided_cm2=as_provided_cm2,
-        rho_provided=rho_provided,
-        rho_min=rho_min,
-        rho_max=rho_max,
-        as_min_cm2=as_min_cm2,
-        as_max_cm2=as_max_cm2,
-        as_status=as_status,
-        a_cm=a_cm,
-        c_cm=c_cm,
-        dt_cm=dt_cm,
-        ety=ety,
-        et=et,
-        mn_kgm=mn_kgm,
-        phi_mn_kgm=phi_mn_kgm,
-        ratio=ratio,
-        ratio_status=ratio_status,
-        design_status=design_status,
-    )
+    return _to_app_moment_results(engine_results)
 
 
 def calculate_shear_design(
@@ -315,188 +158,24 @@ def calculate_shear_design(
     shear: ShearDesignInput,
     design_inputs: BeamDesignInputSet,
 ) -> ShearDesignResults:
-    geometry_results = calculate_beam_geometry(
-        geometry,
-        design_inputs.positive_bending,
-        design_inputs.negative_bending,
-        design_inputs.shear,
-        include_negative=design_inputs.has_negative_design,
+    engine_results = design_shear_beam(
+        ShearBeamInput(
+            design_code=_to_engine_design_code(design_inputs.metadata.design_code),
+            materials=_to_engine_materials(materials),
+            geometry=_to_engine_geometry(geometry),
+            factored_shear_kg=shear.factored_shear_kg,
+            stirrup_diameter_mm=shear.stirrup_diameter_mm,
+            legs_per_plane=shear.legs_per_plane,
+            spacing_mode=_to_engine_shear_spacing_mode(shear.spacing_mode),
+            provided_spacing_cm=shear.provided_spacing_cm,
+            positive_compression_reinforcement=_to_engine_reinforcement(design_inputs.positive_bending.compression_reinforcement),
+            positive_tension_reinforcement=_to_engine_reinforcement(design_inputs.positive_bending.tension_reinforcement),
+            negative_compression_reinforcement=_to_engine_reinforcement(design_inputs.negative_bending.compression_reinforcement),
+            negative_tension_reinforcement=_to_engine_reinforcement(design_inputs.negative_bending.tension_reinforcement),
+            include_negative_geometry=design_inputs.has_negative_design,
+        )
     )
-    phi_shear = _calculate_shear_phi(design_inputs.metadata.design_code)
-    d_plus_cm = geometry_results.d_plus_cm
-    sqrt_fc = math.sqrt(materials.concrete_strength_ksc)
-    base_vc_kg = 0.53 * sqrt_fc * geometry.width_cm * d_plus_cm
-    vs_max_kg = 2.1 * sqrt_fc * geometry.width_cm * d_plus_cm
-    phi_vs_max_kg = phi_shear * vs_max_kg
-    av_cm2 = (math.pi * (_diameter_cm(shear.stirrup_diameter_mm) ** 2) / 4) * shear.legs_per_plane
-    av_min_per_spacing_cm = _calculate_av_min_per_spacing_cm(
-        sqrt_fc,
-        geometry.width_cm,
-        materials.shear_steel_yield_ksc,
-    )
-    s_max_from_av_cm = min(
-        _safe_divide(av_cm2 * materials.shear_steel_yield_ksc, 0.2 * sqrt_fc * geometry.width_cm),
-        _safe_divide(av_cm2 * materials.shear_steel_yield_ksc, 3.5 * geometry.width_cm),
-    )
-
-    def _calculate_shear_state(vc_kg_value: float) -> tuple[float, float, float, float, float, float]:
-        phi_vc_kg_value = phi_shear * vc_kg_value
-        phi_vs_required_kg_value = max(shear.factored_shear_kg - phi_vc_kg_value, 0)
-        nominal_vs_required_kg_value = _safe_divide(phi_vs_required_kg_value, phi_shear)
-        if nominal_vs_required_kg_value <= 1.1 * sqrt_fc * geometry.width_cm * d_plus_cm:
-            s_max_from_vs_cm_value = min(d_plus_cm / 2, 60)
-        else:
-            s_max_from_vs_cm_value = min(d_plus_cm / 4, 30)
-
-        if phi_vs_required_kg_value == 0:
-            strength_spacing_cm_value = math.inf
-        else:
-            strength_spacing_cm_value = _safe_divide(
-                av_cm2 * materials.shear_steel_yield_ksc * d_plus_cm,
-                nominal_vs_required_kg_value,
-            )
-
-        required_spacing_cm_value = min(strength_spacing_cm_value, s_max_from_av_cm, s_max_from_vs_cm_value)
-        provided_spacing_cm_value = (
-            _auto_select_spacing_cm(required_spacing_cm_value)
-            if shear.spacing_mode == ShearSpacingMode.AUTO
-            else shear.provided_spacing_cm
-        )
-        return (
-            phi_vc_kg_value,
-            phi_vs_required_kg_value,
-            nominal_vs_required_kg_value,
-            s_max_from_vs_cm_value,
-            required_spacing_cm_value,
-            provided_spacing_cm_value,
-        )
-
-    (
-        phi_vc_kg,
-        phi_vs_required_kg,
-        nominal_vs_required_kg,
-        s_max_from_vs_cm,
-        required_spacing_cm,
-        provided_spacing_cm,
-    ) = _calculate_shear_state(base_vc_kg)
-
-    av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
-    size_effect_factor = 1.0
-    size_effect_applied = False
-    vc_kg = base_vc_kg
-    if (
-        design_inputs.metadata.design_code == DesignCode.ACI318_19
-        and av_cm2 < av_min_cm2 - 1e-9
-    ):
-        size_effect_factor = _calculate_aci318_19_size_effect_factor(d_plus_cm)
-        size_effect_applied = size_effect_factor < 1.0 - 1e-9
-        vc_kg = base_vc_kg * size_effect_factor
-        (
-            phi_vc_kg,
-            phi_vs_required_kg,
-            nominal_vs_required_kg,
-            s_max_from_vs_cm,
-            required_spacing_cm,
-            provided_spacing_cm,
-        ) = _calculate_shear_state(vc_kg)
-        av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
-
-    vc_max_kg: float | None = None
-    vc_capped_by_max = False
-    if design_inputs.metadata.design_code == DesignCode.ACI318_19:
-        vc_max_kg = _calculate_aci318_19_vc_max_kg(
-            sqrt_fc,
-            geometry.width_cm,
-            d_plus_cm,
-            size_effect_factor,
-        )
-        if vc_kg > vc_max_kg + 1e-9:
-            vc_kg = vc_max_kg
-            vc_capped_by_max = True
-            (
-                phi_vc_kg,
-                phi_vs_required_kg,
-                nominal_vs_required_kg,
-                s_max_from_vs_cm,
-                required_spacing_cm,
-                provided_spacing_cm,
-            ) = _calculate_shear_state(vc_kg)
-            av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
-
-    vs_provided_kg = _safe_divide(av_cm2 * materials.shear_steel_yield_ksc * d_plus_cm, provided_spacing_cm)
-    phi_vs_provided_kg = phi_shear * vs_provided_kg
-    effective_vs_kg = min(vs_provided_kg, vs_max_kg)
-    vn_kg = vc_kg + effective_vs_kg
-    phi_vn_kg = phi_shear * vn_kg
-    capacity_ratio = _safe_divide(shear.factored_shear_kg, phi_vn_kg)
-    phi_vn_limit_kg = phi_vc_kg + phi_vs_max_kg
-
-    spacing_ok = provided_spacing_cm <= required_spacing_cm + 1e-9
-    strength_limit_ok = nominal_vs_required_kg <= vs_max_kg + 1e-9
-    capacity_ok = phi_vn_kg >= shear.factored_shear_kg
-    section_change_required = shear.factored_shear_kg > phi_vn_limit_kg + 1e-9
-    design_status = "PASS" if spacing_ok and strength_limit_ok and capacity_ok else "FAIL"
-
-    review_notes: list[str] = []
-    section_change_note = ""
-    if section_change_required:
-        section_change_note = (
-            "Applied shear exceeds the maximum design shear strength of the current section, even when the shear reinforcement contribution is limited to Vs,max. "
-            "Increase the beam section and/or revise the section properties."
-        )
-        review_notes.append(section_change_note)
-    if not strength_limit_ok:
-        review_notes.append("Required shear reinforcement exceeds the current section limit. Increase section size or revise detailing.")
-    if not spacing_ok:
-        review_notes.append(
-            f"Provided spacing {provided_spacing_cm:.2f} cm exceeds required spacing {required_spacing_cm:.2f} cm."
-        )
-    if av_cm2 < av_min_cm2 - 1e-9:
-        review_notes.append(
-            f"Av = {av_cm2:.3f} cm2 is less than Av,min = {av_min_cm2:.3f} cm2."
-        )
-        if design_inputs.metadata.design_code == DesignCode.ACI318_19:
-            review_notes.append(
-                f"ACI 318-19 size effect factor lambda_s = {size_effect_factor:.3f} was applied to Vc."
-            )
-    if vc_capped_by_max and vc_max_kg is not None:
-        review_notes.append(
-            f"ACI 318-19 Vc was limited to Vc,max = {vc_max_kg:.3f} kg."
-        )
-    if vs_provided_kg > vs_max_kg + 1e-9:
-        review_notes.append("Provided stirrup spacing gives Vs above Vs,max; PhiVn is capped at the section shear limit.")
-    review_note = " ".join(review_notes)
-
-    return ShearDesignResults(
-        phi=phi_shear,
-        vc_kg=vc_kg,
-        phi_vc_kg=phi_vc_kg,
-        vc_max_kg=vc_max_kg,
-        vc_capped_by_max=vc_capped_by_max,
-        vs_max_kg=vs_max_kg,
-        phi_vs_max_kg=phi_vs_max_kg,
-        phi_vs_required_kg=phi_vs_required_kg,
-        nominal_vs_required_kg=nominal_vs_required_kg,
-        av_cm2=av_cm2,
-        av_min_cm2=av_min_cm2,
-        size_effect_factor=size_effect_factor,
-        size_effect_applied=size_effect_applied,
-        s_max_from_av_cm=s_max_from_av_cm,
-        s_max_from_vs_cm=s_max_from_vs_cm,
-        required_spacing_cm=required_spacing_cm,
-        provided_spacing_cm=provided_spacing_cm,
-        spacing_mode=shear.spacing_mode,
-        vs_provided_kg=vs_provided_kg,
-        phi_vs_provided_kg=phi_vs_provided_kg,
-        vn_kg=vn_kg,
-        phi_vn_kg=phi_vn_kg,
-        stirrup_spacing_cm=provided_spacing_cm,
-        capacity_ratio=capacity_ratio,
-        design_status=design_status,
-        section_change_required=section_change_required,
-        section_change_note=section_change_note,
-        review_note=review_note,
-    )
+    return _to_app_shear_results(engine_results)
 
 
 def calculate_negative_bending_design(
@@ -505,92 +184,22 @@ def calculate_negative_bending_design(
     negative_bending: NegativeBendingInput,
     design_inputs: BeamDesignInputSet,
 ) -> FlexuralDesignResults:
-    material_results = calculate_material_properties(materials, design_inputs.material_settings)
-    geometry_results = calculate_beam_geometry(
-        geometry,
-        design_inputs.positive_bending,
-        design_inputs.negative_bending,
-        design_inputs.shear,
-        include_negative=True,
+    engine_results = design_moment_beam(
+        MomentBeamInput(
+            design_code=_to_engine_design_code(design_inputs.metadata.design_code),
+            materials=_to_engine_materials(materials),
+            geometry=_to_engine_geometry(geometry),
+            stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+            factored_moment_kgm=negative_bending.factored_moment_kgm,
+            positive_compression_reinforcement=_to_engine_reinforcement(design_inputs.positive_bending.compression_reinforcement),
+            positive_tension_reinforcement=_to_engine_reinforcement(design_inputs.positive_bending.tension_reinforcement),
+            negative_compression_reinforcement=_to_engine_reinforcement(negative_bending.compression_reinforcement),
+            negative_tension_reinforcement=_to_engine_reinforcement(negative_bending.tension_reinforcement),
+            material_settings=_to_engine_material_settings(design_inputs.material_settings),
+            design_case=MomentDesignCase.NEGATIVE_LEGACY,
+        )
     )
-    d_plus_cm = geometry_results.d_plus_cm
-    d_minus_cm = geometry_results.d_minus_cm
-    if d_minus_cm is None:
-        raise ValueError("Negative bending geometry is not available for the selected beam type.")
-    as_provided_cm2 = negative_bending.tension_reinforcement.total_area_cm2
-    rho_provided = _safe_divide(as_provided_cm2, geometry.width_cm * d_minus_cm)
-    a_cm = _safe_divide(
-        as_provided_cm2 * materials.main_steel_yield_ksc,
-        0.85 * materials.concrete_strength_ksc * geometry.width_cm,
-    )
-    c_cm = _safe_divide(a_cm, material_results.beta_1)
-    dt_cm = (
-        geometry.depth_cm
-        - geometry.cover_cm
-        - _diameter_cm(design_inputs.shear.stirrup_diameter_mm)
-        - (_group_diameter_cm(negative_bending.tension_reinforcement.layer_1.group_a) / 2)
-    )
-    ety = _safe_divide(materials.main_steel_yield_ksc, material_results.es_ksc)
-    et = _safe_divide(ECU * (dt_cm - c_cm), c_cm)
-    phi = _calculate_flexural_phi(design_inputs.metadata.design_code, et, ety)
-    ru_kg_per_cm2 = _safe_divide(
-        negative_bending.factored_moment_kgm * 100,
-        phi * geometry.width_cm * (d_minus_cm**2),
-    )
-    rho_required = _calculate_rho_required(
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-        ru_kg_per_cm2,
-    )
-    rho_min = _calculate_rho_min(
-        design_inputs.metadata.design_code,
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-    )
-    rho_max = _calculate_rho_max(
-        design_inputs.metadata.design_code,
-        materials.concrete_strength_ksc,
-        materials.main_steel_yield_ksc,
-        material_results.beta_1,
-    )
-    as_required_cm2 = rho_required * geometry.width_cm * d_minus_cm
-    as_min_cm2 = rho_min * geometry.width_cm * d_plus_cm
-    as_max_cm2 = rho_max * geometry.width_cm * d_minus_cm
-    mn_kgm = as_provided_cm2 * materials.main_steel_yield_ksc * (d_plus_cm - (a_cm / 2)) / 100
-    phi_mn_kgm = mn_kgm * phi
-    ratio = _safe_divide(negative_bending.factored_moment_kgm, phi_mn_kgm)
-    as_status = _calculate_as_status(rho_provided, rho_min, rho_max)
-    ratio_status = "OK" if phi_mn_kgm >= negative_bending.factored_moment_kgm else "NOT OK"
-    design_status = "PASS" if as_status == "OK" and ratio_status == "OK" else "FAIL"
-    review_note = (
-        "Negative-moment block currently uses d+ for As_min and Mn rather than d-. "
-        "Manual engineering review is required before using this result for issued design documents."
-    )
-
-    return FlexuralDesignResults(
-        phi=phi,
-        ru_kg_per_cm2=ru_kg_per_cm2,
-        rho_required=rho_required,
-        as_required_cm2=as_required_cm2,
-        as_provided_cm2=as_provided_cm2,
-        rho_provided=rho_provided,
-        rho_min=rho_min,
-        rho_max=rho_max,
-        as_min_cm2=as_min_cm2,
-        as_max_cm2=as_max_cm2,
-        as_status=as_status,
-        a_cm=a_cm,
-        c_cm=c_cm,
-        dt_cm=dt_cm,
-        ety=ety,
-        et=et,
-        mn_kgm=mn_kgm,
-        phi_mn_kgm=phi_mn_kgm,
-        ratio=ratio,
-        ratio_status=ratio_status,
-        design_status=design_status,
-        review_note=review_note,
-    )
+    return _to_app_moment_results(engine_results)
 
 
 def calculate_deflection_check(
@@ -698,6 +307,126 @@ def validate_shear_warnings(
     return [message if message.endswith(".") else f"{message}." for message in warning_messages]
 
 
+def validate_torsion_warnings(torsion_results: TorsionDesignResults) -> list[str]:
+    return [message if message.endswith(".") else f"{message}." for message in torsion_results.warnings]
+
+
+def _compose_combined_shear_torsion_results(
+    design_inputs: BeamDesignInputSet,
+    shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+) -> CombinedShearTorsionResults:
+    if not torsion_results.enabled:
+        return CombinedShearTorsionResults(
+            active=False,
+            torsion_ignored=False,
+            ignore_message="",
+            vu_kg=design_inputs.shear.factored_shear_kg,
+            tu_kgfm=design_inputs.torsion.factored_torsion_kgfm,
+            shear_required_transverse_mm2_per_mm=0.0,
+            torsion_required_transverse_mm2_per_mm=0.0,
+            combined_required_transverse_mm2_per_mm=0.0,
+            provided_transverse_mm2_per_mm=0.0,
+            governing_case="Shear",
+            capacity_ratio=0.0,
+            design_status="PASS",
+            stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+            stirrup_legs=design_inputs.shear.legs_per_plane,
+            stirrup_spacing_cm=shear_results.provided_spacing_cm,
+            summary_note="",
+            required_spacing_cm=shear_results.required_spacing_cm,
+            spacing_limit_reason="Shear only",
+        )
+
+    if torsion_results.can_neglect_torsion:
+        ignore_message = (
+            f"Tu = {design_inputs.torsion.factored_torsion_kgfm:.3f} kgf-m < "
+            f"Tth = {torsion_results.threshold_torsion_kgfm:.3f} kgf-m, so torsion may be ignored."
+        )
+        return CombinedShearTorsionResults(
+            active=False,
+            torsion_ignored=True,
+            ignore_message=ignore_message,
+            vu_kg=design_inputs.shear.factored_shear_kg,
+            tu_kgfm=design_inputs.torsion.factored_torsion_kgfm,
+            shear_required_transverse_mm2_per_mm=0.0,
+            torsion_required_transverse_mm2_per_mm=0.0,
+            combined_required_transverse_mm2_per_mm=0.0,
+            provided_transverse_mm2_per_mm=0.0,
+            governing_case="Torsion ignored",
+            capacity_ratio=0.0,
+            design_status="PASS",
+            stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+            stirrup_legs=design_inputs.shear.legs_per_plane,
+            stirrup_spacing_cm=shear_results.provided_spacing_cm,
+            summary_note=ignore_message,
+            required_spacing_cm=shear_results.required_spacing_cm,
+            spacing_limit_reason="Torsion ignored",
+        )
+
+    d_mm = design_inputs.geometry.depth_cm * 10.0
+    shear_required_transverse_mm2_per_mm = _safe_divide(
+        shear_results.nominal_vs_required_kg,
+        design_inputs.materials.shear_steel_yield_ksc * d_mm,
+    )
+    # Shared-stirrup summary basis:
+    # - shear demand is expressed as total vertical-leg area per spacing, Av/s
+    # - torsion At/s is converted to the same shared closed-stirrup basis by multiplying by the number of vertical legs
+    # - Capacity Ratio (Shear + Torsion) = combined required transverse reinforcement / provided transverse reinforcement
+    torsion_required_transverse_mm2_per_mm = (
+        torsion_results.transverse_reinf_required_mm2_per_mm * design_inputs.shear.legs_per_plane
+    )
+    combined_required_transverse_mm2_per_mm = (
+        shear_required_transverse_mm2_per_mm + torsion_required_transverse_mm2_per_mm
+    )
+    required_spacing_cm, spacing_limit_reason = _combined_required_spacing_limit_cm(
+        shear_results,
+        torsion_results,
+        combined_required_transverse_mm2_per_mm,
+    )
+    provided_transverse_mm2_per_mm = _safe_divide(
+        shear_results.av_cm2 * 100.0,
+        shear_results.provided_spacing_cm * 10.0,
+    )
+    capacity_ratio = _safe_divide(
+        combined_required_transverse_mm2_per_mm,
+        provided_transverse_mm2_per_mm,
+    )
+
+    governing_values = {
+        "Shear": shear_required_transverse_mm2_per_mm,
+        "Torsion": torsion_required_transverse_mm2_per_mm,
+        "Shear + Torsion": combined_required_transverse_mm2_per_mm,
+    }
+    governing_case = max(governing_values, key=governing_values.get)
+    design_status = "PASS" if capacity_ratio <= 1.0 + 1e-9 else "FAIL"
+    summary_note = (
+        "Capacity Ratio (Shear + Torsion) = "
+        "(shear-only required transverse reinforcement + torsion-only required transverse reinforcement) / "
+        "provided transverse reinforcement of the shared closed stirrup."
+    )
+    return CombinedShearTorsionResults(
+        active=True,
+        torsion_ignored=False,
+        ignore_message="",
+        vu_kg=design_inputs.shear.factored_shear_kg,
+        tu_kgfm=design_inputs.torsion.factored_torsion_kgfm,
+        shear_required_transverse_mm2_per_mm=shear_required_transverse_mm2_per_mm,
+        torsion_required_transverse_mm2_per_mm=torsion_required_transverse_mm2_per_mm,
+        combined_required_transverse_mm2_per_mm=combined_required_transverse_mm2_per_mm,
+        provided_transverse_mm2_per_mm=provided_transverse_mm2_per_mm,
+        governing_case=governing_case,
+        capacity_ratio=capacity_ratio,
+        design_status=design_status,
+        stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+        stirrup_legs=design_inputs.shear.legs_per_plane,
+        stirrup_spacing_cm=shear_results.provided_spacing_cm,
+        summary_note=summary_note,
+        required_spacing_cm=required_spacing_cm,
+        spacing_limit_reason=spacing_limit_reason,
+    )
+
+
 def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesignResults:
     include_negative = design_inputs.has_negative_design
     material_results = calculate_material_properties(design_inputs.materials, design_inputs.material_settings)
@@ -719,6 +448,67 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
         design_inputs.geometry,
         design_inputs.shear,
         design_inputs,
+    )
+    torsion_results = design_torsion_beam(
+        TorsionBeamInput(
+            design=design_inputs.torsion,
+            geometry=TorsionSectionGeometryInput(
+                width_cm=design_inputs.geometry.width_cm,
+                depth_cm=design_inputs.geometry.depth_cm,
+                cover_cm=design_inputs.geometry.cover_cm,
+                stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+                stirrup_spacing_cm=shear_results.provided_spacing_cm,
+                stirrup_legs=design_inputs.shear.legs_per_plane,
+            ),
+            materials=TorsionDesignMaterialInput(
+                concrete_strength_ksc=design_inputs.materials.concrete_strength_ksc,
+                transverse_steel_yield_ksc=design_inputs.materials.shear_steel_yield_ksc,
+                longitudinal_steel_yield_ksc=design_inputs.torsion.provided_longitudinal_bar_fy_ksc,
+            ),
+        )
+    )
+    if design_inputs.torsion.enabled and not torsion_results.can_neglect_torsion:
+        resolved_shared_spacing_cm = _resolve_shared_stirrup_spacing_cm(
+            design_inputs,
+            shear_results,
+            torsion_results,
+        )
+        if abs(resolved_shared_spacing_cm - shear_results.provided_spacing_cm) > 1e-9:
+            adjusted_shear = ShearDesignInput(
+                factored_shear_kg=design_inputs.shear.factored_shear_kg,
+                stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+                legs_per_plane=design_inputs.shear.legs_per_plane,
+                spacing_mode=ShearSpacingMode.MANUAL,
+                provided_spacing_cm=resolved_shared_spacing_cm,
+            )
+            shear_results = calculate_shear_design(
+                design_inputs.materials,
+                design_inputs.geometry,
+                adjusted_shear,
+                design_inputs,
+            )
+            torsion_results = design_torsion_beam(
+                TorsionBeamInput(
+                    design=design_inputs.torsion,
+                    geometry=TorsionSectionGeometryInput(
+                        width_cm=design_inputs.geometry.width_cm,
+                        depth_cm=design_inputs.geometry.depth_cm,
+                        cover_cm=design_inputs.geometry.cover_cm,
+                        stirrup_diameter_mm=design_inputs.shear.stirrup_diameter_mm,
+                        stirrup_spacing_cm=shear_results.provided_spacing_cm,
+                        stirrup_legs=design_inputs.shear.legs_per_plane,
+                    ),
+                    materials=TorsionDesignMaterialInput(
+                        concrete_strength_ksc=design_inputs.materials.concrete_strength_ksc,
+                        transverse_steel_yield_ksc=design_inputs.materials.shear_steel_yield_ksc,
+                        longitudinal_steel_yield_ksc=design_inputs.torsion.provided_longitudinal_bar_fy_ksc,
+                    ),
+                )
+            )
+    combined_shear_torsion_results = _compose_combined_shear_torsion_results(
+        design_inputs,
+        shear_results,
+        torsion_results,
     )
     negative_results = None
     if include_negative:
@@ -752,6 +542,7 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
             include_negative=include_negative,
         ),
         *validate_shear_warnings(design_inputs, shear_results),
+        *validate_torsion_warnings(torsion_results),
     ]
     review_flags = _build_review_flags(negative_results, deflection_results)
     overall_status, overall_note = _calculate_overall_assessment(
@@ -759,6 +550,8 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
         geometry_results,
         positive_results,
         shear_results,
+        torsion_results,
+        combined_shear_torsion_results,
         negative_results,
         review_flags,
     )
@@ -767,12 +560,206 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
         beam_geometry=geometry_results,
         positive_bending=positive_results,
         shear=shear_results,
+        torsion=torsion_results,
+        combined_shear_torsion=combined_shear_torsion_results,
         negative_bending=negative_results,
         deflection=deflection_results,
         warnings=warnings,
         review_flags=review_flags,
         overall_status=overall_status,
         overall_note=overall_note,
+    )
+
+
+def _to_engine_design_code(code: DesignCode) -> EngineDesignCode:
+    return EngineDesignCode[code.name]
+
+
+def _to_engine_materials(materials: MaterialPropertiesInput) -> EngineMaterialPropertiesInput:
+    return EngineMaterialPropertiesInput(
+        concrete_strength_ksc=materials.concrete_strength_ksc,
+        main_steel_yield_ksc=materials.main_steel_yield_ksc,
+        shear_steel_yield_ksc=materials.shear_steel_yield_ksc,
+    )
+
+
+def _to_engine_material_settings(settings: MaterialPropertySettings) -> EngineMaterialPropertySettings:
+    return EngineMaterialPropertySettings(
+        ec=EngineMaterialPropertySetting(
+            mode=EngineMaterialPropertyMode[settings.ec.mode.name],
+            manual_value=settings.ec.manual_value,
+        ),
+        es=EngineMaterialPropertySetting(
+            mode=EngineMaterialPropertyMode[settings.es.mode.name],
+            manual_value=settings.es.manual_value,
+        ),
+        fr=EngineMaterialPropertySetting(
+            mode=EngineMaterialPropertyMode[settings.fr.mode.name],
+            manual_value=settings.fr.manual_value,
+        ),
+    )
+
+
+def _to_engine_geometry(geometry: BeamGeometryInput) -> EngineBeamSectionInput:
+    return EngineBeamSectionInput(
+        width_cm=geometry.width_cm,
+        depth_cm=geometry.depth_cm,
+        cover_cm=geometry.cover_cm,
+        minimum_clear_spacing_cm=geometry.minimum_clear_spacing_cm,
+    )
+
+
+def _to_engine_reinforcement(reinforcement: ReinforcementArrangementInput) -> EngineReinforcementArrangementInput:
+    return EngineReinforcementArrangementInput(
+        layer_1=_to_engine_layer(reinforcement.layer_1),
+        layer_2=_to_engine_layer(reinforcement.layer_2),
+        layer_3=_to_engine_layer(reinforcement.layer_3),
+    )
+
+
+def _to_engine_layer(layer: RebarLayerInput) -> EngineRebarLayerInput:
+    return EngineRebarLayerInput(
+        group_a=_to_engine_group(layer.group_a),
+        group_b=_to_engine_group(layer.group_b),
+    )
+
+
+def _to_engine_group(group: RebarGroupInput) -> EngineRebarGroupInput:
+    return EngineRebarGroupInput(diameter_mm=group.diameter_mm, count=group.count)
+
+
+def _to_engine_shear_spacing_mode(mode: ShearSpacingMode) -> EngineShearSpacingMode:
+    return EngineShearSpacingMode[mode.name]
+
+
+def _to_app_material_results(engine_results) -> MaterialResults:
+    return MaterialResults(
+        fc_prime_ksc=engine_results.fc_prime_ksc,
+        fy_ksc=engine_results.fy_ksc,
+        fvy_ksc=engine_results.fvy_ksc,
+        ec_ksc=engine_results.ec_ksc,
+        es_ksc=engine_results.es_ksc,
+        modular_ratio_n=engine_results.modular_ratio_n,
+        modulus_of_rupture_fr_ksc=engine_results.modulus_of_rupture_fr_ksc,
+        beta_1=engine_results.beta_1,
+        ec_mode=MaterialPropertyMode[engine_results.ec_mode.name],
+        es_mode=MaterialPropertyMode[engine_results.es_mode.name],
+        fr_mode=MaterialPropertyMode[engine_results.fr_mode.name],
+        ec_default_ksc=engine_results.ec_default_ksc,
+        es_default_ksc=engine_results.es_default_ksc,
+        fr_default_ksc=engine_results.fr_default_ksc,
+        ec_default_logic=engine_results.ec_default_logic,
+        es_default_logic=engine_results.es_default_logic,
+        fr_default_logic=engine_results.fr_default_logic,
+    )
+
+
+def _to_app_spacing_results(engine_results) -> ReinforcementSpacingResults:
+    return ReinforcementSpacingResults(
+        layer_1=_to_app_layer_spacing_result(engine_results.layer_1),
+        layer_2=_to_app_layer_spacing_result(engine_results.layer_2),
+        layer_3=_to_app_layer_spacing_result(engine_results.layer_3),
+        overall_status=engine_results.overall_status,
+    )
+
+
+def _to_app_layer_spacing_result(engine_result) -> LayerSpacingResult:
+    return LayerSpacingResult(
+        layer_index=engine_result.layer_index,
+        group_a_diameter_mm=engine_result.group_a_diameter_mm,
+        group_a_count=engine_result.group_a_count,
+        group_b_diameter_mm=engine_result.group_b_diameter_mm,
+        group_b_count=engine_result.group_b_count,
+        spacing_cm=engine_result.spacing_cm,
+        required_spacing_cm=engine_result.required_spacing_cm,
+        status=engine_result.status,
+        message=engine_result.message,
+    )
+
+
+def _to_app_beam_geometry_results(engine_results) -> BeamGeometryResults:
+    return BeamGeometryResults(
+        section_area_cm2=engine_results.section_area_cm2,
+        gross_moment_of_inertia_cm4=engine_results.gross_moment_of_inertia_cm4,
+        cover_plus_stirrup_cm=engine_results.cover_plus_stirrup_cm,
+        positive_compression_centroid_d_prime_cm=engine_results.positive_compression_centroid_d_prime_cm,
+        positive_tension_centroid_from_bottom_d_cm=engine_results.positive_tension_centroid_from_bottom_d_cm,
+        negative_compression_centroid_from_bottom_cm=engine_results.negative_compression_centroid_from_bottom_cm,
+        negative_tension_centroid_from_top_cm=engine_results.negative_tension_centroid_from_top_cm,
+        d_plus_cm=engine_results.d_plus_cm,
+        d_minus_cm=engine_results.d_minus_cm,
+        positive_compression_spacing=_to_app_spacing_results(engine_results.positive_compression_spacing),
+        positive_tension_spacing=_to_app_spacing_results(engine_results.positive_tension_spacing),
+        negative_compression_spacing=(
+            _to_app_spacing_results(engine_results.negative_compression_spacing)
+            if engine_results.negative_compression_spacing is not None
+            else None
+        ),
+        negative_tension_spacing=(
+            _to_app_spacing_results(engine_results.negative_tension_spacing)
+            if engine_results.negative_tension_spacing is not None
+            else None
+        ),
+    )
+
+
+def _to_app_moment_results(engine_results) -> FlexuralDesignResults:
+    return FlexuralDesignResults(
+        phi=engine_results.phi,
+        ru_kg_per_cm2=engine_results.ru_kg_per_cm2,
+        rho_required=engine_results.rho_required,
+        as_required_cm2=engine_results.as_required_cm2,
+        as_provided_cm2=engine_results.as_provided_cm2,
+        rho_provided=engine_results.rho_provided,
+        rho_min=engine_results.rho_min,
+        rho_max=engine_results.rho_max,
+        as_min_cm2=engine_results.as_min_cm2,
+        as_max_cm2=engine_results.as_max_cm2,
+        as_status=engine_results.as_status,
+        a_cm=engine_results.a_cm,
+        c_cm=engine_results.c_cm,
+        dt_cm=engine_results.dt_cm,
+        ety=engine_results.ety,
+        et=engine_results.et,
+        mn_kgm=engine_results.mn_kgm,
+        phi_mn_kgm=engine_results.phi_mn_kgm,
+        ratio=engine_results.ratio,
+        ratio_status=engine_results.ratio_status,
+        design_status=engine_results.design_status,
+        review_note=engine_results.review_note,
+    )
+
+
+def _to_app_shear_results(engine_results) -> ShearDesignResults:
+    return ShearDesignResults(
+        phi=engine_results.phi,
+        vc_kg=engine_results.vc_kg,
+        phi_vc_kg=engine_results.phi_vc_kg,
+        vc_max_kg=engine_results.vc_max_kg,
+        vc_capped_by_max=engine_results.vc_capped_by_max,
+        vs_max_kg=engine_results.vs_max_kg,
+        phi_vs_max_kg=engine_results.phi_vs_max_kg,
+        phi_vs_required_kg=engine_results.phi_vs_required_kg,
+        nominal_vs_required_kg=engine_results.nominal_vs_required_kg,
+        av_cm2=engine_results.av_cm2,
+        av_min_cm2=engine_results.av_min_cm2,
+        size_effect_factor=engine_results.size_effect_factor,
+        size_effect_applied=engine_results.size_effect_applied,
+        s_max_from_av_cm=engine_results.s_max_from_av_cm,
+        s_max_from_vs_cm=engine_results.s_max_from_vs_cm,
+        required_spacing_cm=engine_results.required_spacing_cm,
+        provided_spacing_cm=engine_results.provided_spacing_cm,
+        spacing_mode=ShearSpacingMode[engine_results.spacing_mode.name],
+        vs_provided_kg=engine_results.vs_provided_kg,
+        phi_vs_provided_kg=engine_results.phi_vs_provided_kg,
+        vn_kg=engine_results.vn_kg,
+        phi_vn_kg=engine_results.phi_vn_kg,
+        stirrup_spacing_cm=engine_results.stirrup_spacing_cm,
+        capacity_ratio=engine_results.capacity_ratio,
+        design_status=engine_results.design_status,
+        section_change_required=engine_results.section_change_required,
+        section_change_note=engine_results.section_change_note,
+        review_note=engine_results.review_note,
     )
 
 
@@ -795,7 +782,7 @@ def _build_review_flags(
             title="Code compliance statement",
             severity="warning",
             message=(
-                "The implemented flexural and shear expressions follow ACI-style equations, "
+                "The implemented flexural, shear, and optional torsion expressions follow ACI-style equations, "
                 "but the governing code clauses have not been fully audited in this repository."
             ),
             verification_status=VerificationStatus.NEEDS_REVIEW,
@@ -817,6 +804,8 @@ def _calculate_overall_assessment(
     geometry_results: BeamGeometryResults,
     positive_results: FlexuralDesignResults,
     shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+    combined_shear_torsion_results: CombinedShearTorsionResults,
     negative_results: FlexuralDesignResults | None,
     review_flags: list[ReviewFlag],
 ) -> tuple[str, str]:
@@ -832,6 +821,10 @@ def _calculate_overall_assessment(
             strength_failures.append("Shear strength does not satisfy V_u <= phi V_n.")
     if shear_results.nominal_vs_required_kg > shear_results.vs_max_kg:
         strength_failures.append("Required shear reinforcement exceeds the permitted shear steel contribution.")
+    if combined_shear_torsion_results.active and combined_shear_torsion_results.design_status == "FAIL":
+        strength_failures.append("Shared closed stirrup reinforcement does not satisfy the combined shear-and-torsion transverse reinforcement demand.")
+    elif torsion_results.enabled and not torsion_results.can_neglect_torsion and torsion_results.status == "FAIL":
+        strength_failures.append(torsion_results.pass_fail_summary)
     if strength_failures:
         return "FAIL", " ".join(strength_failures)
 
@@ -852,6 +845,10 @@ def _calculate_overall_assessment(
         requirement_issues.append("One or more reinforcement layers do not satisfy the minimum clear spacing requirement.")
     if shear_results.review_note:
         requirement_issues.append(shear_results.review_note)
+    # combined.summary_note is an explanatory basis note for report/UI only.
+    # It is not itself a design warning and must not drive the overall status.
+    if torsion_results.enabled and torsion_results.warnings:
+        requirement_issues.extend(torsion_results.warnings)
     if requirement_issues:
         return "DOES NOT MEET REQUIREMENTS", " ".join(requirement_issues)
 
@@ -945,6 +942,57 @@ def _auto_select_spacing_cm(required_spacing_cm: float, increment_cm: float = AU
     if snapped_spacing_cm > 0:
         return snapped_spacing_cm
     return required_spacing_cm
+
+
+def _resolve_shared_stirrup_spacing_cm(
+    design_inputs: BeamDesignInputSet,
+    shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+) -> float:
+    required_spacing_cm, _ = _combined_required_spacing_limit_cm(
+        shear_results,
+        torsion_results,
+        _combined_required_transverse_mm2_per_mm(design_inputs, shear_results, torsion_results),
+    )
+    if design_inputs.shear.spacing_mode == ShearSpacingMode.AUTO:
+        return _auto_select_spacing_cm(required_spacing_cm)
+    return design_inputs.shear.provided_spacing_cm
+
+
+def _combined_required_transverse_mm2_per_mm(
+    design_inputs: BeamDesignInputSet,
+    shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+) -> float:
+    d_mm = design_inputs.geometry.depth_cm * 10.0
+    shear_required_transverse_mm2_per_mm = _safe_divide(
+        shear_results.nominal_vs_required_kg,
+        design_inputs.materials.shear_steel_yield_ksc * d_mm,
+    )
+    torsion_required_transverse_mm2_per_mm = (
+        torsion_results.transverse_reinf_required_mm2_per_mm * design_inputs.shear.legs_per_plane
+    )
+    return shear_required_transverse_mm2_per_mm + torsion_required_transverse_mm2_per_mm
+
+
+def _combined_required_spacing_limit_cm(
+    shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+    combined_required_transverse_mm2_per_mm: float,
+) -> tuple[float, str]:
+    spacing_candidates = [
+        (
+            _safe_divide(shear_results.av_cm2 * 100.0, combined_required_transverse_mm2_per_mm) / 10.0,
+            "Combined shear + torsion transverse reinforcement demand",
+        ),
+        (shear_results.s_max_from_av_cm, "Shear code spacing limit from Av"),
+        (shear_results.s_max_from_vs_cm, "Shear code spacing limit from Vs"),
+        (torsion_results.max_spacing_mm / 10.0, "Torsion maximum stirrup spacing"),
+    ]
+    valid_candidates = [(value, reason) for value, reason in spacing_candidates if math.isfinite(value) and value > 0]
+    if not valid_candidates:
+        return (shear_results.required_spacing_cm, "No valid combined spacing limit")
+    return min(valid_candidates, key=lambda item: item[0])
 
 
 def _calculate_rho_required(fc_prime_ksc: float, fy_ksc: float, ru_kg_per_cm2: float) -> float:

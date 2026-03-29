@@ -5,6 +5,8 @@ from datetime import datetime
 
 import streamlit as st
 
+from design.torsion import TorsionDemandType, TorsionDesignCode, TorsionDesignInput
+from design.torsion.torsion_report import torsion_workspace_summary_lines
 from core.theme import (
     apply_theme,
     capacity_ratio_html,
@@ -42,7 +44,15 @@ from .models import (
     ShearSpacingMode,
     default_beam_design_inputs,
 )
-from .visualization import beam_section_specs, build_beam_section_svg, build_section_rebar_details, shared_drawing_transform
+from .visualization import (
+    available_moment_cases,
+    beam_section_specs,
+    build_beam_section_svg,
+    build_section_rebar_details,
+    shared_drawing_transform,
+    torsion_bar_drawable_capacity,
+    torsion_bar_spacing_warning,
+)
 from .visualization import PhiFlexureChartState, build_flexural_phi_chart_svg
 
 
@@ -51,6 +61,15 @@ BAR_DIAMETER_OPTIONS_WITH_EMPTY: list[object] = ["-", 6, 9, 10, 12, 16, 20, 25, 
 BAR_DIAMETER_OPTIONS: list[object] = [6, 9, 10, 12, 16, 20, 25, 28, 32, 40, "Custom"]
 PERSISTED_WORKSPACE_STATE_KEY = "_persisted_workspace_state"
 LAST_RENDERED_PAGE_KEY = "_last_rendered_page"
+TORSION_INPUT_BACKUP_KEY = "_torsion_input_backup"
+TORSION_DEMAND_TYPE_INFO_TEXT = (
+    "Use 'equilibrium torsion' when torsion is required to maintain static equilibrium of the member "
+    "or structural system.\n\n"
+    "Use 'compatibility torsion' when torsion arises primarily from deformation compatibility in an "
+    "indeterminate structure and is not essential to overall equilibrium.\n\n"
+    "Therefore, if the torsion type is uncertain, 'equilibrium torsion' should be selected, as it is "
+    "the safer and more conservative design assumption."
+)
 
 
 @st.cache_data(show_spinner=False)
@@ -128,6 +147,14 @@ def build_default_state(inputs: BeamDesignInputSet) -> dict[str, object]:
         "legs_per_plane": inputs.shear.legs_per_plane,
         "shear_spacing_mode": inputs.shear.spacing_mode.value,
         "shear_spacing_cm": inputs.shear.provided_spacing_cm,
+        "include_torsion_design": inputs.torsion.enabled,
+        "torsion_tu_kgfm": inputs.torsion.factored_torsion_kgfm,
+        "torsion_demand_type": inputs.torsion.demand_type.value,
+        "torsion_longitudinal_diameter_option": _diameter_option(inputs.torsion.provided_longitudinal_bar_diameter_mm, allow_empty=True),
+        "torsion_longitudinal_diameter_mm": int(inputs.torsion.provided_longitudinal_bar_diameter_mm or 0),
+        "torsion_longitudinal_fy_grade_option": _steel_grade_option(inputs.torsion.provided_longitudinal_bar_fy_ksc),
+        "torsion_longitudinal_fy_ksc": float(inputs.torsion.provided_longitudinal_bar_fy_ksc),
+        "torsion_longitudinal_count": inputs.torsion.provided_longitudinal_bar_count,
         "deflection_beam_type": inputs.deflection.beam_type.value,
         "beam_type_factor_x": inputs.deflection.beam_type_factor_x,
         "span_length_m": inputs.deflection.span_length_m,
@@ -234,6 +261,7 @@ def render_input_workspace() -> None:
             help="Simple Beam hides negative-moment design. Continuous Beam shows both positive and negative design workflows.",
         )
         st.caption("Simple Beam = positive-moment workflow only. Continuous Beam = positive and negative moment design.")
+        st.checkbox("Include Torsion Design", key="include_torsion_design", on_change=_handle_include_torsion_design_change)
 
     with st.expander("3. Material Properties: f'c, fy, fvy", expanded=True):
         cols = st.columns(3, gap="medium")
@@ -294,19 +322,28 @@ def render_input_workspace() -> None:
                 st.caption("Bottom reinforcement.")
                 render_reinforcement_editor("nb_comp", "Compression Reinforcement", preview_inputs, preview_results, show_phi=False)
 
-    shear_section_label = "7. Shear Design" if _selected_beam_type() == BeamType.CONTINUOUS else "6. Shear Design"
+    shear_section_label = _shear_design_section_label(st.session_state.include_torsion_design, _selected_beam_type())
     with st.expander(shear_section_label, expanded=True):
         _render_shear_header_feedback(preview_results)
         _render_shear_inputs()
         _render_shear_spacing_feedback()
+        if st.session_state.include_torsion_design:
+            _render_torsion_section(preview_results)
 
 def _render_shear_inputs() -> None:
-    top_cols = st.columns(3, gap="medium")
+    top_cols = st.columns(4 if st.session_state.include_torsion_design else 3, gap="medium")
     with top_cols[0]:
         st.markdown("<div class='input-field-label'>V<sub>u</sub> (kg)</div>", unsafe_allow_html=True)
         st.number_input("Vu (kg)", min_value=0.0, step=50.0, key="vu_kg", label_visibility="collapsed")
         _render_field_helper()
-    with top_cols[1]:
+    column_index = 1
+    if st.session_state.include_torsion_design:
+        with top_cols[1]:
+            st.markdown("<div class='input-field-label'>T<sub>u</sub> (kgf-m)</div>", unsafe_allow_html=True)
+            st.number_input("Tu (kgf-m)", min_value=0.0, step=10.0, key="torsion_tu_kgfm", label_visibility="collapsed")
+            _render_field_helper("Factored torsion")
+        column_index = 2
+    with top_cols[column_index]:
         st.markdown("<div class='input-field-label'>Stirrup diameter (mm)</div>", unsafe_allow_html=True)
         st.selectbox(
             "Stirrup diameter (mm)",
@@ -315,7 +352,7 @@ def _render_shear_inputs() -> None:
             label_visibility="collapsed",
         )
         _render_diameter_input("stirrup_diameter_option", "stirrup_diameter_mm", "Stirrup diameter custom (mm)", allow_empty=False)
-    with top_cols[2]:
+    with top_cols[column_index + 1]:
         st.markdown("<div class='input-field-label'>Legs per plane</div>", unsafe_allow_html=True)
         st.number_input("Legs per plane", min_value=1, step=1, key="legs_per_plane", label_visibility="collapsed")
         _render_field_helper()
@@ -343,6 +380,145 @@ def _render_shear_inputs() -> None:
         else:
             st.caption(
                 f"Auto selects a spacing not greater than the required spacing and rounds down to {AUTO_SHEAR_SPACING_INCREMENT_CM:.1f} cm steps."
+            )
+
+
+def _render_torsion_section(preview_results) -> None:
+    st.markdown("<div class='section-label'>Torsion</div>", unsafe_allow_html=True)
+    if preview_results is None:
+        st.caption("Complete the current input set to preview torsion design results.")
+        return
+
+    torsion = preview_results.torsion
+    combined = preview_results.combined_shear_torsion
+    if not _torsion_detail_inputs_required(preview_results):
+        st.markdown(
+            f"<div class='design-banner info'>{combined.ignore_message}</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    try:
+        current_inputs = _build_inputs_for_torsion_capacity_preview()
+        drawable_counts = [torsion_bar_drawable_capacity(current_inputs, moment_case) for moment_case in available_moment_cases(current_inputs)]
+        max_drawable_al_count = min(drawable_counts) if drawable_counts else 0
+    except ValueError:
+        max_drawable_al_count = 0
+
+    st.markdown(
+        f"<div class='design-banner info'>Uses Design Code: {st.session_state.design_code}</div>",
+        unsafe_allow_html=True,
+    )
+
+    top_input_cols = st.columns(3, gap="medium")
+    with top_input_cols[0]:
+        st.markdown("<div class='input-field-label'>Al bars dia (mm)</div>", unsafe_allow_html=True)
+        st.selectbox(
+            "Al bars dia (mm)",
+            options=BAR_DIAMETER_OPTIONS_WITH_EMPTY,
+            key="torsion_longitudinal_diameter_option",
+            label_visibility="collapsed",
+        )
+        _render_diameter_input(
+            "torsion_longitudinal_diameter_option",
+            "torsion_longitudinal_diameter_mm",
+            "Al bars dia custom (mm)",
+            allow_empty=True,
+        )
+    with top_input_cols[1]:
+        st.markdown("<div class='input-field-label'>Al fyl (ksc)</div>", unsafe_allow_html=True)
+        st.selectbox(
+            "Al fyl (ksc)",
+            options=STEEL_GRADE_OPTIONS,
+            key="torsion_longitudinal_fy_grade_option",
+            label_visibility="collapsed",
+        )
+        _render_steel_grade_input("torsion_longitudinal_fy_grade_option", "torsion_longitudinal_fy_ksc", "Al fyl custom (ksc)")
+    with top_input_cols[2]:
+        st.markdown("<div class='input-field-label'>Al count</div>", unsafe_allow_html=True)
+        if max_drawable_al_count >= 0 and st.session_state.torsion_longitudinal_count > max_drawable_al_count:
+            st.session_state.torsion_longitudinal_count = max_drawable_al_count
+        st.number_input(
+            "Al count",
+            min_value=0,
+            max_value=max_drawable_al_count,
+            step=1,
+            key="torsion_longitudinal_count",
+            label_visibility="collapsed",
+        )
+        _render_field_helper(f"Maximum drawable Al count = {max_drawable_al_count}")
+        if max_drawable_al_count == 0 and st.session_state.torsion_longitudinal_diameter_mm > 0:
+            st.markdown(
+                "<div class='design-banner fail'>No drawable Al bar position is available for the current section and spacing rules.</div>",
+                unsafe_allow_html=True,
+            )
+        elif st.session_state.torsion_longitudinal_count >= max_drawable_al_count > 0:
+            st.markdown(
+                f"<div class='design-banner fail'>Reached maximum of drawable Al bars for the current section layout: {max_drawable_al_count} bars.</div>",
+                unsafe_allow_html=True,
+            )
+
+    bottom_cols = st.columns(3, gap="medium")
+    with bottom_cols[0]:
+        provided_al_cm2 = _torsion_longitudinal_area_from_state()
+        st.markdown("<div class='input-field-label'>Provided Al</div>", unsafe_allow_html=True)
+        st.caption(f"{format_number(provided_al_cm2)} cm²")
+        _render_field_helper("Calculated from dia and count")
+    with bottom_cols[1]:
+        st.markdown("<div class='input-field-label'>Torsion demand type</div>", unsafe_allow_html=True)
+        st.radio(
+            "Torsion demand type",
+            options=[demand_type.value for demand_type in TorsionDemandType],
+            key="torsion_demand_type",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+    with bottom_cols[2]:
+        _render_torsion_demand_type_info()
+
+    if combined.active:
+        st.markdown("<div class='section-label'>Shear & Torsion</div>", unsafe_allow_html=True)
+        combined_lines = [
+            f"Vu = {format_number(combined.vu_kg)} kg | Tu = {format_number(combined.tu_kgfm)} kgf-m",
+            f"Transverse req. = shear {combined.shear_required_transverse_mm2_per_mm:.6f} + torsion {combined.torsion_required_transverse_mm2_per_mm:.6f} = {combined.combined_required_transverse_mm2_per_mm:.6f} mm<sup>2</sup>/mm",
+            f"Transverse prov. = {combined.provided_transverse_mm2_per_mm:.6f} mm<sup>2</sup>/mm | Capacity Ratio (Shear + Torsion) = {format_ratio(combined.capacity_ratio, 3)}",
+            f"Shared stirrups = \u03d5{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm | {combined.design_status}",
+        ]
+        for line in combined_lines:
+            st.markdown(f"<div class='design-banner info'>{line}</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-label'>Longitudinal Torsion Steel</div>", unsafe_allow_html=True)
+        st.markdown(
+            (
+                "<div class='design-banner info'>"
+                f"Al,req = {format_number(torsion.longitudinal_reinf_required_mm2 / 100.0)} cm<sup>2</sup> | "
+                f"Al,prov = {format_number(torsion.longitudinal_reinf_provided_mm2 / 100.0)} cm<sup>2</sup> | "
+                f"fyl = {format_number(_resolved_grade_value('torsion_longitudinal_fy_grade_option', 'torsion_longitudinal_fy_ksc'))} ksc"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+    for line in torsion_workspace_summary_lines(torsion):
+        st.markdown(f"<div class='design-banner info'>{line}</div>", unsafe_allow_html=True)
+    if torsion.demand_type == TorsionDemandType.COMPATIBILITY:
+        st.markdown(
+            "<div class='design-banner info'>Compatibility torsion is shown using the entered Tu; redistribution is not implemented.</div>",
+            unsafe_allow_html=True,
+        )
+    for warning in torsion.warnings:
+        st.markdown(
+            f"<div class='design-banner fail'>{warning}</div>",
+            unsafe_allow_html=True,
+        )
+    current_inputs = build_inputs_from_state()
+    spacing_warnings = [
+        torsion_bar_spacing_warning(current_inputs, moment_case)
+        for moment_case in available_moment_cases(current_inputs)
+    ]
+    for spacing_warning in spacing_warnings:
+        if spacing_warning:
+            st.markdown(
+                f"<div class='design-banner fail'>{spacing_warning}</div>",
+                unsafe_allow_html=True,
             )
 
 
@@ -637,12 +813,16 @@ def _render_shear_spacing_feedback() -> None:
         return
 
     shear = results.shear
+    combined = results.combined_shear_torsion
     min_spacing_cm = AUTO_SHEAR_SPACING_INCREMENT_CM
-    upper_limit_cm = shear.required_spacing_cm
+    upper_limit_cm = combined.required_spacing_cm if combined.active else shear.required_spacing_cm
+    governing_reason = combined.spacing_limit_reason if combined.active else "Shear required spacing"
+    provided_spacing_cm = combined.stirrup_spacing_cm if combined.active else shear.provided_spacing_cm
     if shear.spacing_mode == ShearSpacingMode.AUTO:
+        descriptor = "combined shear + torsion" if combined.active else "required"
         st.info(
-            f"Auto selected spacing = {format_number(shear.provided_spacing_cm)} cm "
-            f"(required spacing <= {format_number(upper_limit_cm)} cm)."
+            f"Auto selected spacing = {format_number(provided_spacing_cm)} cm "
+            f"({descriptor} spacing <= {format_number(upper_limit_cm)} cm; governed by {governing_reason})."
         )
         return
 
@@ -650,18 +830,21 @@ def _render_shear_spacing_feedback() -> None:
         f"Manual spacing range used by this app: {format_number(min_spacing_cm)} cm to "
         f"{format_number(upper_limit_cm)} cm."
     )
-    if shear.provided_spacing_cm < min_spacing_cm:
+    if provided_spacing_cm < min_spacing_cm:
         st.warning(
-            f"Provided spacing {format_number(shear.provided_spacing_cm)} cm is below the current minimum "
+            f"Provided spacing {format_number(provided_spacing_cm)} cm is below the current minimum "
             f"input range of {format_number(min_spacing_cm)} cm."
         )
-    elif shear.provided_spacing_cm > upper_limit_cm:
+    elif provided_spacing_cm > upper_limit_cm:
         st.warning(
-            f"Provided spacing {format_number(shear.provided_spacing_cm)} cm exceeds the required maximum "
-            f"spacing of {format_number(upper_limit_cm)} cm."
+            f"Provided spacing {format_number(provided_spacing_cm)} cm does not meet the required maximum "
+            f"spacing of {format_number(upper_limit_cm)} cm. Governing limit: {governing_reason}."
         )
     else:
-        st.success(f"Provided spacing {format_number(shear.provided_spacing_cm)} cm is within the current required range.")
+        st.success(
+            f"Provided spacing {format_number(provided_spacing_cm)} cm is within the current required range "
+            f"(governed by {governing_reason})."
+        )
 
 
 def render_summary_panel(inputs: BeamDesignInputSet, results, palette) -> None:
@@ -681,7 +864,8 @@ def render_summary_panel(inputs: BeamDesignInputSet, results, palette) -> None:
         with column:
             st.markdown(f"<div class='section-label'>{title} Section</div>", unsafe_allow_html=True)
             st.markdown(build_beam_section_svg(inputs, palette, moment_case, transform=drawing_transform), unsafe_allow_html=True)
-            rebar_details = build_section_rebar_details(inputs, moment_case, results.shear.provided_spacing_cm)
+            stirrup_spacing_cm = results.combined_shear_torsion.stirrup_spacing_cm if results.combined_shear_torsion.active else results.shear.provided_spacing_cm
+            rebar_details = build_section_rebar_details(inputs, moment_case, stirrup_spacing_cm)
             st.markdown(_section_rebar_detail_html(rebar_details), unsafe_allow_html=True)
     render_key_metrics(inputs, results, palette)
     render_warnings_and_flags(results)
@@ -730,6 +914,34 @@ def render_key_metrics(inputs: BeamDesignInputSet, results, palette) -> None:
         ),
         ("Spacing check", results.beam_geometry.positive_tension_spacing.overall_status, "Positive tension layers"),
     ]
+    combined_metrics: list[tuple[str, object, str]] = []
+    combined = results.combined_shear_torsion
+    if combined.active:
+        combined_metrics = [
+            (
+                "Capacity Ratio (Shear + Torsion)",
+                capacity_ratio_html(combined.capacity_ratio),
+                "Combined required transverse reinforcement / provided transverse reinforcement",
+            ),
+            ("V<sub>u</sub>", format_number(combined.vu_kg), "kg"),
+            ("T<sub>u</sub>", format_number(combined.tu_kgfm), "kgf-m"),
+            (
+                "Req. transverse",
+                f"{combined.combined_required_transverse_mm2_per_mm:.6f}",
+                "mm<sup>2</sup>/mm",
+            ),
+            (
+                "Prov. transverse",
+                f"{combined.provided_transverse_mm2_per_mm:.6f}",
+                "mm<sup>2</sup>/mm",
+            ),
+            (
+                "Stirrups",
+                f"&phi;{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm",
+                combined.design_status,
+            ),
+            ("Pass / Fail", combined.design_status, "Shared closed stirrup check"),
+        ]
 
     positive_chart_html = build_flexural_phi_chart_svg(
         palette,
@@ -754,7 +966,27 @@ def render_key_metrics(inputs: BeamDesignInputSet, results, palette) -> None:
             ),
         )
         _render_metric_group("Negative Moment", negative_moment_metrics, palette, extra_html=negative_chart_html)
-    _render_metric_group("Shear", shear_metrics, palette)
+    if combined.active:
+        _render_metric_group(
+            "Shear & Torsion",
+            combined_metrics,
+            palette,
+            extra_html=_build_shear_torsion_interaction_diagram_html(combined, palette, results.torsion),
+        )
+    else:
+        _render_metric_group("Shear", shear_metrics, palette)
+        if inputs.torsion.enabled and combined.torsion_ignored:
+            st.markdown(
+                f"<div class='design-banner info'>{combined.ignore_message}</div>",
+                unsafe_allow_html=True,
+            )
+        elif inputs.torsion.enabled:
+            torsion_metrics = [
+                ("T<sub>u</sub>", format_number(results.torsion.tu_kgfm), "kgf-m"),
+                ("Threshold", format_number(results.torsion.threshold_torsion_kgfm), "kgf-m"),
+                ("Status", results.torsion.status, _torsion_warning_summary(results.torsion)),
+            ]
+            _render_metric_group("Torsion", torsion_metrics, palette)
     overall_label = results.overall_status
     if overall_label == "DOES NOT MEET REQUIREMENTS":
         overall_label = "DOES NOT MEET DESIGN REQUIREMENTS"
@@ -783,6 +1015,106 @@ def _render_metric_group(title: str, metrics: list[tuple[str, object, str]], pal
             )
     if extra_html:
         st.markdown(extra_html, unsafe_allow_html=True)
+
+
+def _build_shear_torsion_interaction_diagram_html(combined, palette, torsion_results=None) -> str:
+    if not combined.active or combined.provided_transverse_mm2_per_mm <= 0:
+        return ""
+
+    # Shared closed-stirrup interaction check:
+    # x = shear-required transverse reinforcement / provided transverse reinforcement
+    # y = torsion-required transverse reinforcement / provided transverse reinforcement
+    # Pass condition = x + y <= 1.0
+    shear_ratio = combined.shear_required_transverse_mm2_per_mm / combined.provided_transverse_mm2_per_mm
+    torsion_ratio = combined.torsion_required_transverse_mm2_per_mm / combined.provided_transverse_mm2_per_mm
+    combined_ratio = shear_ratio + torsion_ratio
+    axis_limit = min(max(1.1, shear_ratio, torsion_ratio, combined_ratio) * 1.1, 2.5)
+
+    width = 320.0
+    height = 240.0
+    padding_left = 48.0
+    padding_right = 18.0
+    padding_top = 18.0
+    padding_bottom = 42.0
+    plot_width = width - padding_left - padding_right
+    plot_height = height - padding_top - padding_bottom
+
+    def sx(value: float) -> float:
+        return padding_left + (value / axis_limit) * plot_width
+
+    def sy(value: float) -> float:
+        return padding_top + plot_height - (value / axis_limit) * plot_height
+
+    status_color = palette.ok if combined.capacity_ratio <= 1.0 + 1e-9 else palette.fail
+    pass_fill = palette.ok if combined.capacity_ratio <= 1.0 + 1e-9 else palette.warning
+    demand_x = min(shear_ratio, axis_limit)
+    demand_y = min(torsion_ratio, axis_limit)
+    x_ticks = [0.0, 0.5, 1.0, axis_limit]
+    y_ticks = [0.0, 0.5, 1.0, axis_limit]
+
+    x_tick_markup = []
+    for tick in x_ticks:
+        tick_x = sx(tick)
+        x_tick_markup.append(
+            f"<line x1='{tick_x:.2f}' y1='{padding_top + plot_height:.2f}' x2='{tick_x:.2f}' y2='{padding_top + plot_height + 5:.2f}' stroke='{palette.muted_text}' stroke-width='1' />"
+            f"<text x='{tick_x:.2f}' y='{height - 12:.2f}' text-anchor='middle' font-size='9.5' fill='{palette.muted_text}'>{tick:.2f}</text>"
+        )
+    y_tick_markup = []
+    for tick in y_ticks:
+        tick_y = sy(tick)
+        y_tick_markup.append(
+            f"<line x1='{padding_left - 5:.2f}' y1='{tick_y:.2f}' x2='{padding_left:.2f}' y2='{tick_y:.2f}' stroke='{palette.muted_text}' stroke-width='1' />"
+            f"<text x='{padding_left - 8:.2f}' y='{tick_y + 3:.2f}' text-anchor='end' font-size='9.5' fill='{palette.muted_text}'>{tick:.2f}</text>"
+        )
+
+    pass_region_points = (
+        f"{sx(0.0):.2f},{sy(0.0):.2f} "
+        f"{sx(0.0):.2f},{sy(1.0):.2f} "
+        f"{sx(1.0):.2f},{sy(0.0):.2f}"
+    )
+    demand_point_x = sx(demand_x)
+    demand_point_y = sy(demand_y)
+
+    warning_html = ""
+    torsion_warning_text = _torsion_warning_summary(torsion_results)
+    if torsion_results is not None and torsion_warning_text and torsion_warning_text != torsion_results.pass_fail_summary:
+        warning_html = f"<div class='design-banner fail'>{torsion_warning_text}</div>"
+
+    return f"""
+    <div class="metric-card">
+      <div class="section-label">Shear&ndash;Torsion Interaction Diagram</div>
+      <svg width="100%" style="display:block;max-width:{width:.0f}px;margin:0 auto;" viewBox="0 0 {width:.0f} {height:.0f}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shear-Torsion interaction diagram">
+        <rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" rx="14" fill="{palette.surface_alt}" />
+        <rect x="{padding_left:.2f}" y="{padding_top:.2f}" width="{plot_width:.2f}" height="{plot_height:.2f}" rx="12" fill="{palette.surface}" stroke="{palette.border}" stroke-width="1.3" />
+        <polygon points="{pass_region_points}" fill="{pass_fill}" fill-opacity="0.14" />
+        <line x1="{sx(0.0):.2f}" y1="{sy(1.0):.2f}" x2="{sx(1.0):.2f}" y2="{sy(0.0):.2f}" stroke="{palette.text}" stroke-width="2" stroke-dasharray="5 4" />
+        <line x1="{padding_left:.2f}" y1="{padding_top + plot_height:.2f}" x2="{padding_left + plot_width:.2f}" y2="{padding_top + plot_height:.2f}" stroke="{palette.text}" stroke-width="1.8" />
+        <line x1="{padding_left:.2f}" y1="{padding_top + plot_height:.2f}" x2="{padding_left:.2f}" y2="{padding_top:.2f}" stroke="{palette.text}" stroke-width="1.8" />
+        {''.join(x_tick_markup)}
+        {''.join(y_tick_markup)}
+        <line x1="{demand_point_x:.2f}" y1="{padding_top + plot_height:.2f}" x2="{demand_point_x:.2f}" y2="{demand_point_y:.2f}" stroke="{status_color}" stroke-width="1.4" stroke-opacity="0.7" stroke-dasharray="4 4" />
+        <line x1="{padding_left:.2f}" y1="{demand_point_y:.2f}" x2="{demand_point_x:.2f}" y2="{demand_point_y:.2f}" stroke="{status_color}" stroke-width="1.4" stroke-opacity="0.7" stroke-dasharray="4 4" />
+        <circle cx="{demand_point_x:.2f}" cy="{demand_point_y:.2f}" r="5.5" fill="{status_color}" stroke="{palette.surface}" stroke-width="2" />
+        <text x="{demand_point_x + 8:.2f}" y="{demand_point_y - 8:.2f}" font-size="10" font-weight="600" fill="{status_color}">Demand point</text>
+        <text x="{padding_left + plot_width / 2:.2f}" y="{height - 2:.2f}" text-anchor="middle" font-size="10.5" font-weight="600" fill="{palette.text}">Shear ratio</text>
+        <text x="14" y="{padding_top + plot_height / 2:.2f}" text-anchor="middle" font-size="10.5" font-weight="600" fill="{palette.text}" transform="rotate(-90 14 {padding_top + plot_height / 2:.2f})">Torsion ratio</text>
+      </svg>
+      <div class="metric-note">
+        Interaction check uses x + y &le; 1.00 on the shared closed-stirrup basis.
+        Demand point = ({shear_ratio:.3f}, {torsion_ratio:.3f}),
+        combined ratio = {combined_ratio:.3f}.
+      </div>
+    </div>
+    {warning_html}
+    """
+
+
+def _torsion_warning_summary(torsion_results) -> str:
+    if torsion_results is None:
+        return ""
+    if torsion_results.warnings:
+        return " ".join(torsion_results.warnings)
+    return torsion_results.pass_fail_summary
 
 
 def render_flexural_phi_summary(inputs: BeamDesignInputSet, results, palette) -> None:
@@ -833,6 +1165,9 @@ def render_warnings_and_flags(results) -> None:
 
 
 def build_inputs_from_state() -> BeamDesignInputSet:
+    main_steel_yield_ksc = _resolved_grade_value("fy_grade_option", "fy_ksc")
+    shear_steel_yield_ksc = _resolved_grade_value("fvy_grade_option", "fvy_ksc")
+    torsion_longitudinal_fy_ksc = _resolved_grade_value("torsion_longitudinal_fy_grade_option", "torsion_longitudinal_fy_ksc")
     return BeamDesignInputSet(
         beam_type=BeamType(st.session_state.beam_type),
         metadata=ProjectMetadata(
@@ -845,8 +1180,8 @@ def build_inputs_from_state() -> BeamDesignInputSet:
         ),
         materials=MaterialPropertiesInput(
             concrete_strength_ksc=float(st.session_state.fc_prime_ksc),
-            main_steel_yield_ksc=_resolved_grade_value("fy_grade_option", "fy_ksc"),
-            shear_steel_yield_ksc=_resolved_grade_value("fvy_grade_option", "fvy_ksc"),
+            main_steel_yield_ksc=main_steel_yield_ksc,
+            shear_steel_yield_ksc=shear_steel_yield_ksc,
         ),
         material_settings=MaterialPropertySettings(
             ec=MaterialPropertySetting(
@@ -879,6 +1214,23 @@ def build_inputs_from_state() -> BeamDesignInputSet:
             legs_per_plane=int(st.session_state.legs_per_plane),
             spacing_mode=ShearSpacingMode(st.session_state.shear_spacing_mode),
             provided_spacing_cm=float(st.session_state.shear_spacing_cm),
+        ),
+        torsion=TorsionDesignInput(
+            enabled=bool(st.session_state.include_torsion_design),
+            factored_torsion_kgfm=float(st.session_state.torsion_tu_kgfm),
+            design_code=_torsion_design_code_from_main_code(DesignCode(st.session_state.design_code)),
+            demand_type=TorsionDemandType(st.session_state.torsion_demand_type),
+            provided_longitudinal_steel_cm2=_torsion_longitudinal_area_from_state(),
+            provided_longitudinal_bar_diameter_mm=(
+                _resolved_diameter_value(
+                    "torsion_longitudinal_diameter_option",
+                    "torsion_longitudinal_diameter_mm",
+                    allow_empty=True,
+                )
+                or None
+            ),
+            provided_longitudinal_bar_count=int(st.session_state.torsion_longitudinal_count),
+            provided_longitudinal_bar_fy_ksc=torsion_longitudinal_fy_ksc,
         ),
         negative_bending=NegativeBendingInput(
             factored_moment_kgm=float(st.session_state.negative_mu_kgm),
@@ -934,6 +1286,18 @@ def _selected_beam_type() -> BeamType:
     return BeamType(st.session_state.beam_type)
 
 
+def _shear_design_section_label(include_torsion: bool, beam_type: BeamType) -> str:
+    if include_torsion:
+        return "7. Shear & Torsion Design" if beam_type == BeamType.CONTINUOUS else "6. Shear & Torsion Design"
+    return "7. Shear Design" if beam_type == BeamType.CONTINUOUS else "6. Shear Design"
+
+
+def _torsion_detail_inputs_required(preview_results) -> bool:
+    if preview_results is None:
+        return True
+    return not preview_results.combined_shear_torsion.torsion_ignored
+
+
 def _resolved_project_date() -> str:
     if st.session_state.project_date_mode == "Auto":
         return str(st.session_state.project_date_auto_value)
@@ -944,8 +1308,55 @@ def _current_timestamp_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def _torsion_design_code_from_main_code(design_code: DesignCode) -> TorsionDesignCode:
+    return TorsionDesignCode[design_code.name]
+
+
+def _torsion_longitudinal_area_from_state() -> float:
+    diameter_mm = _resolved_diameter_value(
+        "torsion_longitudinal_diameter_option",
+        "torsion_longitudinal_diameter_mm",
+        allow_empty=True,
+    )
+    count = _int_state_value("torsion_longitudinal_count")
+    if diameter_mm <= 0 or count <= 0:
+        return 0.0
+    return _bar_area_cm2(diameter_mm) * count
+
+
 def _workspace_state_keys(default_inputs: BeamDesignInputSet) -> set[str]:
     return {"project_date_auto_value", *build_default_state(default_inputs).keys()}
+
+
+def _torsion_input_state_keys() -> tuple[str, ...]:
+    return (
+        "torsion_tu_kgfm",
+        "torsion_demand_type",
+        "torsion_longitudinal_diameter_option",
+        "torsion_longitudinal_diameter_mm",
+        "torsion_longitudinal_fy_grade_option",
+        "torsion_longitudinal_fy_ksc",
+        "torsion_longitudinal_count",
+    )
+
+
+def _handle_include_torsion_design_change() -> None:
+    if bool(st.session_state.get("include_torsion_design")):
+        _restore_torsion_input_backup()
+        return
+    st.session_state[TORSION_INPUT_BACKUP_KEY] = {
+        key: st.session_state[key]
+        for key in _torsion_input_state_keys()
+        if key in st.session_state
+    }
+
+
+def _restore_torsion_input_backup() -> None:
+    backup_state = st.session_state.get(TORSION_INPUT_BACKUP_KEY)
+    if not isinstance(backup_state, dict):
+        return
+    for key, value in backup_state.items():
+        st.session_state[key] = value
 
 
 def _restore_persisted_workspace_state(default_inputs: BeamDesignInputSet, *, force_restore: bool) -> None:
@@ -960,6 +1371,10 @@ def _restore_persisted_workspace_state(default_inputs: BeamDesignInputSet, *, fo
 def _section_rebar_detail_html(details) -> str:
     top_lines = "".join(f"<div class='rebar-detail-line'>{line}</div>" for line in details.top_lines)
     bottom_lines = "".join(f"<div class='rebar-detail-line'>{line}</div>" for line in details.bottom_lines)
+    torsion_side_lines = "".join(f"<div class='rebar-detail-line'>{line}</div>" for line in details.torsion_side_lines)
+    torsion_warning_html = ""
+    if details.torsion_warning:
+        torsion_warning_html = f"<div class='rebar-detail-line' style='color:#d92d20;font-weight:700'>{details.torsion_warning}</div>"
     return (
         "<div class='metric-card rebar-detail-card'>"
         "<div class='rebar-detail-row'><div class='metric-label'>Top Rebar</div>"
@@ -968,6 +1383,8 @@ def _section_rebar_detail_html(details) -> str:
         f"<div class='rebar-detail-value'>{bottom_lines}</div></div>"
         "<div class='rebar-detail-row'><div class='metric-label'>Stirrup</div>"
         f"<div class='rebar-detail-value'><div class='rebar-detail-line'>{details.stirrup_line}</div></div></div>"
+        "<div class='rebar-detail-row'><div class='metric-label'>Torsion Surface Bars</div>"
+        f"<div class='rebar-detail-value'>{torsion_side_lines}{torsion_warning_html}</div></div>"
         "</div>"
     )
 
@@ -1015,4 +1432,29 @@ def _render_field_helper(text: str = "") -> None:
     helper_class = "field-helper" if text else "field-helper blank"
     content = text if text else "&nbsp;"
     st.markdown(f"<div class='{helper_class}'>{content}</div>", unsafe_allow_html=True)
+
+
+def _build_inputs_for_torsion_capacity_preview() -> BeamDesignInputSet:
+    diameter_mm = _resolved_diameter_value(
+        "torsion_longitudinal_diameter_option",
+        "torsion_longitudinal_diameter_mm",
+        allow_empty=True,
+    )
+    original_count = int(st.session_state.torsion_longitudinal_count)
+    if diameter_mm > 0 and original_count == 0:
+        st.session_state.torsion_longitudinal_count = 1
+    try:
+        return build_inputs_from_state()
+    finally:
+        st.session_state.torsion_longitudinal_count = original_count
+
+
+def _render_torsion_demand_type_info() -> None:
+    popover = getattr(st, "popover", None)
+    if callable(popover):
+        with popover("Info"):
+            st.markdown(TORSION_DEMAND_TYPE_INFO_TEXT)
+        return
+    with st.expander("Info"):
+        st.markdown(TORSION_DEMAND_TYPE_INFO_TEXT)
 

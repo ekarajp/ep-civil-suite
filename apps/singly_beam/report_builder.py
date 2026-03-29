@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from design.torsion.torsion_report import build_torsion_report_rows
+from design.torsion.torsion_units import mm2_to_cm2, mm_to_cm
 from core.theme import ThemePalette
 from core.utils import format_number, format_ratio, longitudinal_bar_mark
 
@@ -35,6 +37,8 @@ def build_report_sections(inputs: BeamDesignInputSet, results: BeamDesignResults
     if inputs.has_negative_design and results.negative_bending is not None:
         sections.append(_build_negative_section(inputs, results))
     sections.append(_build_shear_section(inputs, results))
+    if inputs.torsion.enabled:
+        sections.append(_build_torsion_section(inputs, results))
     sections.append(_build_summary_section(inputs, results))
     return sections
 
@@ -122,6 +126,8 @@ def build_print_report_sections(inputs: BeamDesignInputSet, results: BeamDesignR
             ],
         )
     )
+    if inputs.torsion.enabled:
+        sections.append(_build_print_torsion_section(results))
     sections.append(_build_print_design_summary(inputs, results))
     return sections
 
@@ -135,6 +141,8 @@ def build_full_report_sections(inputs: BeamDesignInputSet, results: BeamDesignRe
         _build_full_spacing_section(inputs, results),
         _build_full_shear_section(inputs, results),
     ]
+    if inputs.torsion.enabled:
+        sections.append(_build_full_torsion_section(results))
     if inputs.has_negative_design and results.negative_bending is not None:
         sections.append(_build_full_negative_section(inputs, results))
     sections.extend(
@@ -975,6 +983,38 @@ def _build_shear_section(inputs: BeamDesignInputSet, results: BeamDesignResults)
     )
 
 
+def _build_torsion_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
+    torsion = results.torsion
+    combined = results.combined_shear_torsion
+    if combined.torsion_ignored:
+        return ReportSection(
+            title="Torsion Design",
+            rows=[
+                ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m"),
+                ReportRow("Threshold torsion", "Neglect check", "-", format_number(torsion.threshold_torsion_kgfm), "kgf-m"),
+                ReportRow("Summary", "-", combined.ignore_message, "Ignore Tu", "-", "PASS"),
+            ],
+        )
+    return ReportSection(
+        title="Torsion Design",
+        rows=[
+            ReportRow("Code", "-", torsion.code_version, torsion.code_version, "-"),
+            ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m", torsion.status),
+            ReportRow("Threshold torsion", "Neglect check", "-", format_number(torsion.threshold_torsion_kgfm), "kgf-m", torsion.status),
+            ReportRow("Shear & Torsion", "-", f"Vu = {format_number(combined.vu_kg)} | Tu = {format_number(combined.tu_kgfm)}", combined.design_status if combined.active else torsion.status, "-", combined.design_status if combined.active else torsion.status),
+            ReportRow("Shear-only req.", "-", "-", f"{combined.shear_required_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+            ReportRow("Torsion-only req.", "-", "-", f"{combined.torsion_required_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+            ReportRow("Combined req.", "-", "-", f"{combined.combined_required_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+            ReportRow("Provided transverse", "-", "-", f"{combined.provided_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+            ReportRow("Capacity Ratio (Shear + Torsion)", "-", combined.summary_note, format_ratio(combined.capacity_ratio), "-", combined.design_status if combined.active else torsion.status),
+            ReportRow("At/s req.", torsion.transverse_reinf_required_governing, "-", f"{torsion.transverse_reinf_required_mm2_per_mm:.6f}", "mm2/mm", torsion.status),
+            ReportRow("Al req.", torsion.longitudinal_reinf_required_governing, "-", format_number(mm2_to_cm2(torsion.longitudinal_reinf_required_mm2)), "cm2", torsion.status),
+            ReportRow("Al prov.", "User input", "-", format_number(mm2_to_cm2(torsion.longitudinal_reinf_provided_mm2)), "cm2", torsion.status),
+            ReportRow("Summary", torsion.governing_equation or "-", torsion.pass_fail_summary, torsion.status, "-", torsion.status),
+        ],
+    )
+
+
 def _build_negative_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
     negative = results.negative_bending
     if negative is None:
@@ -1004,11 +1044,29 @@ def _build_negative_section(inputs: BeamDesignInputSet, results: BeamDesignResul
 
 
 def _build_summary_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
+    combined = results.combined_shear_torsion
     rows = [
         ReportRow("Overall status", "-", results.overall_note, results.overall_status, "-", results.overall_note),
         ReportRow("Positive flexure", "-", results.positive_bending.design_status, results.positive_bending.design_status, "-", results.positive_bending.as_status),
-        ReportRow("Shear", "-", results.shear.design_status, results.shear.design_status, "-", f"{format_number(results.shear.provided_spacing_cm)} cm"),
     ]
+    if combined.active:
+        rows.append(
+            ReportRow(
+                "Shear & Torsion",
+                "-",
+                f"Capacity Ratio (Shear + Torsion) = {format_ratio(combined.capacity_ratio)}",
+                combined.design_status,
+                "-",
+                f"\u03d5{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm",
+            )
+        )
+    else:
+        rows.append(
+            ReportRow("Shear", "-", results.shear.design_status, results.shear.design_status, "-", f"{format_number(results.shear.provided_spacing_cm)} cm")
+        )
+    if inputs.torsion.enabled:
+        torsion_note = combined.ignore_message if combined.torsion_ignored else results.torsion.pass_fail_summary
+        rows.append(ReportRow("Torsion", "-", torsion_note, results.torsion.status, "-", results.torsion.status))
     if inputs.has_negative_design and results.negative_bending is not None:
         rows.append(
             ReportRow("Negative flexure", "-", results.negative_bending.design_status, results.negative_bending.design_status, "-", results.negative_bending.as_status)
@@ -1197,6 +1255,54 @@ def _build_full_shear_section(inputs: BeamDesignInputSet, results: BeamDesignRes
     )
 
 
+def _build_full_torsion_section(results: BeamDesignResults) -> ReportSection:
+    torsion = results.torsion
+    combined = results.combined_shear_torsion
+    if combined.torsion_ignored:
+        return ReportSection(
+            title="Torsion Design",
+            rows=[
+                ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m"),
+                ReportRow("Threshold torsion", "Neglect check", "-", format_number(torsion.threshold_torsion_kgfm), "kgf-m"),
+                ReportRow("Summary", "-", combined.ignore_message, "Ignore Tu", "-", "PASS"),
+            ],
+        )
+    rows = [
+        ReportRow("Torsion code", "-", torsion.code_version, torsion.code_version, "-"),
+        ReportRow("Demand type", "-", torsion.demand_type.value, torsion.demand_type.value, "-"),
+        ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m", torsion.status),
+        ReportRow("Threshold torsion", "Neglect check", "-", format_number(torsion.threshold_torsion_kgfm), "kgf-m", torsion.status),
+        ReportRow("Shear & Torsion", "-", f"Vu = {format_number(combined.vu_kg)} | Tu = {format_number(combined.tu_kgfm)}", combined.design_status if combined.active else torsion.status, "-", combined.design_status if combined.active else torsion.status),
+        ReportRow("Shear-only required transverse reinforcement", "-", "-", f"{combined.shear_required_transverse_mm2_per_mm:.6f}", "mm2/mm"),
+        ReportRow("Torsion-only required transverse reinforcement", "-", "-", f"{combined.torsion_required_transverse_mm2_per_mm:.6f}", "mm2/mm"),
+        ReportRow("Combined required transverse reinforcement", "-", "-", f"{combined.combined_required_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+        ReportRow("Provided transverse reinforcement", "-", "-", f"{combined.provided_transverse_mm2_per_mm:.6f}", "mm2/mm", combined.design_status if combined.active else torsion.status),
+        ReportRow("Capacity Ratio (Shear + Torsion)", "-", combined.summary_note, format_ratio(combined.capacity_ratio), "-", combined.design_status if combined.active else torsion.status),
+        ReportRow("Acp / pcp", "Outside perimeter geometry", "-", f"{format_number(torsion.acp_mm2)} / {format_number(torsion.pcp_mm)}", "mm2 / mm"),
+        ReportRow("Aoh / Ao / ph", "Thin-walled tube geometry", "-", f"{format_number(torsion.aoh_mm2)} / {format_number(torsion.ao_mm2)} / {format_number(torsion.ph_mm)}", "mm2 / mm2 / mm"),
+        ReportRow("At/s req.", torsion.transverse_reinf_required_governing, "-", f"{torsion.transverse_reinf_required_mm2_per_mm:.6f}", "mm2/mm", torsion.status),
+        ReportRow("At/s prov.", "One stirrup leg area / s", "-", f"{torsion.transverse_reinf_provided_mm2_per_mm:.6f}", "mm2/mm", torsion.status),
+        ReportRow("Al req.", torsion.longitudinal_reinf_required_governing, "-", format_number(mm2_to_cm2(torsion.longitudinal_reinf_required_mm2)), "cm2", torsion.status),
+        ReportRow("Al prov.", "User input", "-", format_number(mm2_to_cm2(torsion.longitudinal_reinf_provided_mm2)), "cm2", torsion.status),
+        ReportRow("s max", "min(ph/8, 300 mm)", "-", format_number(mm_to_cm(torsion.max_spacing_mm)), "cm", torsion.status),
+    ]
+    for row in build_torsion_report_rows(torsion):
+        rows.append(
+            ReportRow(
+                row["variable"],
+                row["equation"],
+                row["substitution"],
+                row["result"],
+                row["units"],
+                row["status"],
+                f"{row['clause']} {row['note']}".strip(),
+            )
+        )
+    warning_note = " | ".join(torsion.warnings)
+    rows.append(ReportRow("Summary", torsion.governing_equation or "-", torsion.pass_fail_summary, torsion.status, "-", torsion.status, warning_note))
+    return ReportSection(title="Torsion Design", rows=rows)
+
+
 def _build_full_negative_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
     negative = results.negative_bending
     if negative is None:
@@ -1284,13 +1390,31 @@ def _build_full_review_flag_section(results: BeamDesignResults) -> ReportSection
 
 
 def _build_full_summary_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
+    combined = results.combined_shear_torsion
     warning_summary = "; ".join(results.warnings) if results.warnings else "No direct warnings."
     review_summary = "; ".join(flag.message for flag in results.review_flags) if results.review_flags else "No review notes."
     rows = [
         ReportRow("Overall design status", "-", results.overall_note, results.overall_status, "-", results.overall_note),
         ReportRow(f"Positive flexure, M<sub>u</sub> / {_sym_phi_mn()}", "-", f"M<sub>u</sub> / {_sym_phi_mn()} = {format_ratio(results.positive_bending.ratio)}", results.positive_bending.design_status, "-", results.positive_bending.as_status),
-        ReportRow(f"Shear, {_sym_vu()} / {_sym_phi_vn()}", "-", f"{_sym_vu()} / {_sym_phi_vn()} = {format_ratio(results.shear.capacity_ratio)}; s<sub>prov</sub> = {format_number(results.shear.provided_spacing_cm)} cm", results.shear.design_status, "-", f"s<sub>prov</sub> = {format_number(results.shear.provided_spacing_cm)} cm"),
     ]
+    if combined.active:
+        rows.append(
+            ReportRow(
+                "Shear & Torsion",
+                "-",
+                f"Capacity Ratio (Shear + Torsion) = {format_ratio(combined.capacity_ratio)}",
+                combined.design_status,
+                "-",
+                f"\u03d5{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm",
+            )
+        )
+    else:
+        rows.append(
+            ReportRow(f"Shear, {_sym_vu()} / {_sym_phi_vn()}", "-", f"{_sym_vu()} / {_sym_phi_vn()} = {format_ratio(results.shear.capacity_ratio)}; s<sub>prov</sub> = {format_number(results.shear.provided_spacing_cm)} cm", results.shear.design_status, "-", f"s<sub>prov</sub> = {format_number(results.shear.provided_spacing_cm)} cm")
+        )
+    if inputs.torsion.enabled:
+        torsion_note = combined.ignore_message if combined.torsion_ignored else results.torsion.pass_fail_summary
+        rows.append(ReportRow("Torsion", "-", torsion_note, results.torsion.status, "-", results.torsion.status))
     if inputs.has_negative_design and results.negative_bending is not None:
         rows.append(
             ReportRow("Negative flexure, M<sub>u,neg</sub> / &phi;M<sub>n,neg</sub>", "-", f"M<sub>u,neg</sub> / &phi;M<sub>n,neg</sub> = {format_ratio(results.negative_bending.ratio)}", results.negative_bending.design_status, "-", results.negative_bending.as_status)
@@ -1359,6 +1483,7 @@ def _print_input_mu_value(inputs: BeamDesignInputSet) -> str:
 
 
 def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
+    combined = results.combined_shear_torsion
     rows = [
         ReportRow(
             "Overall Status",
@@ -1377,16 +1502,31 @@ def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignR
             status=results.positive_bending.as_status,
             note=_print_flexural_summary_note(results.positive_bending.review_note),
         ),
-        ReportRow(
-            "Shear",
-            "-",
-            f"Vu / phiVn = {format_ratio(results.shear.capacity_ratio)} | phiVn = {format_number(results.shear.phi_vn_kg)} kg",
-            results.shear.design_status,
-            "-",
-            status=f"s prov = {format_number(results.shear.provided_spacing_cm)} cm",
-            note=_print_shear_summary_note(results),
-        ),
     ]
+    if combined.active:
+        rows.append(
+            ReportRow(
+                "Shear & Torsion",
+                "-",
+                f"Capacity Ratio (Shear + Torsion) = {format_ratio(combined.capacity_ratio)}",
+                combined.design_status,
+                "-",
+                status=f"\u03d5{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm",
+                note=combined.summary_note,
+            )
+        )
+    else:
+        rows.append(
+            ReportRow(
+                "Shear",
+                "-",
+                f"Vu / phiVn = {format_ratio(results.shear.capacity_ratio)} | phiVn = {format_number(results.shear.phi_vn_kg)} kg",
+                results.shear.design_status,
+                "-",
+                status=f"s prov = {format_number(results.shear.provided_spacing_cm)} cm",
+                note=_print_shear_summary_note(results),
+            )
+        )
     if inputs.has_negative_design and results.negative_bending is not None:
         rows.insert(
             2,
@@ -1401,6 +1541,32 @@ def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignR
             ),
         )
     return ReportSection(title="Design Summary", rows=rows)
+
+
+def _build_print_torsion_section(results: BeamDesignResults) -> ReportSection:
+    torsion = results.torsion
+    combined = results.combined_shear_torsion
+    if combined.torsion_ignored:
+        return ReportSection(
+            title="Torsion Design",
+            rows=[
+                ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m"),
+                ReportRow("Threshold", "-", format_number(torsion.threshold_torsion_kgfm), format_number(torsion.threshold_torsion_kgfm), "kgf-m"),
+                ReportRow("Summary", "-", combined.ignore_message, "Ignore Tu", "-", "PASS"),
+            ],
+        )
+    return ReportSection(
+        title="Torsion Design",
+        rows=[
+            ReportRow("Code", "-", torsion.code_version, torsion.code_version, "-"),
+            ReportRow("Tu", "-", format_number(torsion.tu_kgfm), format_number(torsion.tu_kgfm), "kgf-m"),
+            ReportRow("Threshold", "-", format_number(torsion.threshold_torsion_kgfm), format_number(torsion.threshold_torsion_kgfm), "kgf-m"),
+            ReportRow("Capacity Ratio (Shear + Torsion)", "-", combined.summary_note, format_ratio(combined.capacity_ratio), "-", combined.design_status if combined.active else torsion.status),
+            ReportRow("At/s req.", "-", f"{torsion.transverse_reinf_required_mm2_per_mm:.6f}", f"{torsion.transverse_reinf_required_mm2_per_mm:.6f}", "mm2/mm"),
+            ReportRow("Al req.", "-", format_number(mm2_to_cm2(torsion.longitudinal_reinf_required_mm2)), format_number(mm2_to_cm2(torsion.longitudinal_reinf_required_mm2)), "cm2"),
+            ReportRow("Status", "-", torsion.pass_fail_summary, torsion.status, "-", torsion.status),
+        ],
+    )
 
 
 def _print_flexural_summary_note(review_note: str) -> str:

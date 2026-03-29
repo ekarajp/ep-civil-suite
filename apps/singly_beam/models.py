@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 import math
 
+from design.torsion import TorsionDesignInput, TorsionDesignResults
+
 
 class DesignCode(str, Enum):
     ACI318_99 = "ACI318-99, EIT 1008-38"
@@ -274,6 +276,7 @@ class BeamDesignInputSet:
     geometry: BeamGeometryInput = field(default_factory=BeamGeometryInput)
     positive_bending: PositiveBendingInput = field(default_factory=PositiveBendingInput)
     shear: ShearDesignInput = field(default_factory=ShearDesignInput)
+    torsion: TorsionDesignInput = field(default_factory=TorsionDesignInput)
     negative_bending: NegativeBendingInput = field(default_factory=NegativeBendingInput)
     deflection: DeflectionCheckInput = field(default_factory=DeflectionCheckInput)
     material_settings: MaterialPropertySettings = field(default_factory=MaterialPropertySettings)
@@ -404,6 +407,28 @@ class ShearDesignResults:
 
 
 @dataclass(slots=True)
+class CombinedShearTorsionResults:
+    active: bool
+    torsion_ignored: bool
+    ignore_message: str
+    vu_kg: float
+    tu_kgfm: float
+    shear_required_transverse_mm2_per_mm: float
+    torsion_required_transverse_mm2_per_mm: float
+    combined_required_transverse_mm2_per_mm: float
+    provided_transverse_mm2_per_mm: float
+    governing_case: str
+    capacity_ratio: float
+    design_status: str
+    stirrup_diameter_mm: int
+    stirrup_legs: int
+    stirrup_spacing_cm: float
+    summary_note: str = ""
+    required_spacing_cm: float = 0.0
+    spacing_limit_reason: str = ""
+
+
+@dataclass(slots=True)
 class DeflectionCheckResults:
     status: str
     note: str
@@ -424,6 +449,8 @@ class BeamDesignResults:
     beam_geometry: BeamGeometryResults
     positive_bending: FlexuralDesignResults
     shear: ShearDesignResults
+    torsion: TorsionDesignResults
+    combined_shear_torsion: CombinedShearTorsionResults
     negative_bending: FlexuralDesignResults | None
     deflection: DeflectionCheckResults
     warnings: list[str]

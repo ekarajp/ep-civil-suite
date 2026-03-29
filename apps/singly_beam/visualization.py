@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any
 
 from core.theme import ThemePalette
@@ -37,6 +38,8 @@ class SectionRebarDetails:
     top_lines: list[str]
     bottom_lines: list[str]
     stirrup_line: str
+    torsion_side_lines: list[str]
+    torsion_warning: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +49,21 @@ class PhiFlexureChartState:
     et: float
     ety: float
     phi: float
+
+
+@dataclass(frozen=True, slots=True)
+class TorsionBarLayout:
+    points: list[BarPoint]
+    detail_lines: list[str]
+    warning: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class _TorsionPerimeterGeometry:
+    x_left_cm: float
+    x_right_cm: float
+    y_top_cm: float
+    y_bottom_cm: float
 
 
 def build_beam_section_visual(
@@ -70,6 +88,7 @@ def build_beam_section_figure(
     top_arrangement, bottom_arrangement = _select_arrangements(inputs, moment_case)
     top_bars = compute_bar_points(inputs, top_arrangement, face="top")
     bottom_bars = compute_bar_points(inputs, bottom_arrangement, face="bottom")
+    torsion_layout = compute_torsion_bar_layout(inputs, moment_case)
     figure = go.Figure()
     figure.add_shape(
         type="rect",
@@ -92,6 +111,7 @@ def build_beam_section_figure(
     )
     _add_bar_shapes(figure, top_bars, theme.ok, transform)
     _add_bar_shapes(figure, bottom_bars, theme.fail, transform)
+    _add_bar_shapes(figure, torsion_layout.points, theme.warning, transform)
 
     figure.update_xaxes(range=[0, DRAWING_VIEWPORT_WIDTH], visible=False)
     figure.update_yaxes(range=[DRAWING_VIEWPORT_HEIGHT, 0], visible=False, scaleanchor="x", scaleratio=1)
@@ -116,6 +136,7 @@ def build_beam_section_svg(
     top_arrangement, bottom_arrangement = _select_arrangements(inputs, moment_case)
     top_bars = compute_bar_points(inputs, top_arrangement, face="top")
     bottom_bars = compute_bar_points(inputs, bottom_arrangement, face="bottom")
+    torsion_layout = compute_torsion_bar_layout(inputs, moment_case)
     stirrup_offset = (inputs.geometry.cover_cm + inputs.shear.stirrup_diameter_mm / 10) * transform.scale
     svg_width = int(DRAWING_VIEWPORT_WIDTH)
     svg_height = int(DRAWING_VIEWPORT_HEIGHT)
@@ -133,6 +154,9 @@ def build_beam_section_svg(
     for bar in bottom_bars:
         radius = max((bar.diameter_mm / 10) * transform.scale / 2, MIN_DRAWN_BAR_RADIUS)
         bar_elements.append(f"<circle cx='{tx(bar.x_cm):.2f}' cy='{ty(bar.y_cm):.2f}' r='{radius:.2f}' fill='{theme.fail}' opacity='0.92' />")
+    for bar in torsion_layout.points:
+        radius = max((bar.diameter_mm / 10) * transform.scale / 2, MIN_DRAWN_BAR_RADIUS)
+        bar_elements.append(f"<circle cx='{tx(bar.x_cm):.2f}' cy='{ty(bar.y_cm):.2f}' r='{radius:.2f}' fill='{theme.warning}' opacity='0.92' />")
 
     return f"""
     <svg width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}" xmlns="http://www.w3.org/2000/svg">
@@ -174,6 +198,125 @@ def compute_bar_points(
     return points
 
 
+def compute_torsion_side_bar_points(inputs: BeamDesignInputSet, moment_case: str = "positive") -> list[BarPoint]:
+    return compute_torsion_bar_layout(inputs, moment_case).points
+
+
+def compute_torsion_bar_layout(inputs: BeamDesignInputSet, moment_case: str = "positive") -> TorsionBarLayout:
+    return _compute_torsion_bar_layout_for_count(
+        inputs,
+        moment_case,
+        inputs.torsion.provided_longitudinal_bar_count,
+    )
+
+
+def torsion_bar_drawable_capacity(inputs: BeamDesignInputSet, moment_case: str = "positive") -> int:
+    return len(_compute_torsion_bar_layout_for_count(inputs, moment_case, 999).points)
+
+
+def _compute_torsion_bar_layout_for_count(
+    inputs: BeamDesignInputSet,
+    moment_case: str,
+    requested_count: int,
+) -> TorsionBarLayout:
+    torsion = inputs.torsion
+    if (
+        not torsion.enabled
+        or torsion.provided_longitudinal_bar_diameter_mm is None
+        or requested_count <= 0
+    ):
+        return TorsionBarLayout(points=[], detail_lines=["-"])
+
+    top_arrangement, bottom_arrangement = _select_arrangements(inputs, moment_case)
+    occupied_points = [
+        *compute_bar_points(inputs, top_arrangement, face="top"),
+        *compute_bar_points(inputs, bottom_arrangement, face="bottom"),
+    ]
+    minimum_clear_cm = inputs.geometry.minimum_clear_spacing_cm
+    bar_diameter_mm = torsion.provided_longitudinal_bar_diameter_mm
+    perimeter = _torsion_perimeter_geometry(inputs, bar_diameter_mm)
+    surface_counts = {"left": 0, "right": 0, "top": 0, "bottom": 0}
+
+    while sum(surface_counts.values()) < requested_count:
+        remaining = requested_count - sum(surface_counts.values())
+        if remaining >= 2:
+            paired_counts = dict(surface_counts)
+            paired_counts["left"] += 1
+            paired_counts["right"] += 1
+            paired_layout = _compose_torsion_surface_layout(
+                paired_counts,
+                perimeter,
+                bar_diameter_mm,
+                occupied_points,
+                minimum_clear_cm,
+            )
+            if paired_layout is not None:
+                surface_counts = paired_counts
+                continue
+
+        surface_priority = _torsion_surface_priority(surface_counts)
+        placed_in_cycle = False
+        for surface_name in surface_priority:
+            trial_counts = dict(surface_counts)
+            trial_counts[surface_name] += 1
+            candidate_layout = _compose_torsion_surface_layout(
+                trial_counts,
+                perimeter,
+                bar_diameter_mm,
+                occupied_points,
+                minimum_clear_cm,
+            )
+            if candidate_layout is not None:
+                surface_counts = trial_counts
+                placed_in_cycle = True
+                break
+        if not placed_in_cycle:
+            break
+
+    placed_points = _compose_torsion_surface_layout(
+        surface_counts,
+        perimeter,
+        bar_diameter_mm,
+        occupied_points,
+        minimum_clear_cm,
+    ) or []
+
+    detail_lines = _format_torsion_surface_distribution(
+        placed_points,
+        longitudinal_bar_mark(torsion.provided_longitudinal_bar_fy_ksc),
+    )
+    warning_messages: list[str] = []
+    if len(placed_points) < requested_count:
+        warning_messages.append(
+            "Reached maximum Al bar count for the current section perimeter layout. "
+            f"Requested = {requested_count}, drawable = {len(placed_points)}. "
+            "Additional Al bars would violate the minimum clear spacing requirement."
+        )
+    all_section_points = [*occupied_points, *placed_points]
+    minimum_clear_found_cm = _minimum_clear_spacing_cm(all_section_points)
+    if minimum_clear_found_cm is not None and minimum_clear_found_cm + 1e-9 < minimum_clear_cm:
+        warning_messages.append(
+            "Some section bars are closer than the minimum clear spacing requirement "
+            f"({minimum_clear_found_cm:.2f} cm < {minimum_clear_cm:.2f} cm)."
+        )
+    return TorsionBarLayout(
+        points=placed_points,
+        detail_lines=detail_lines or ["-"],
+        warning=" ".join(warning_messages),
+    )
+
+
+def _torsion_surface_priority(surface_counts: dict[str, int]) -> tuple[str, ...]:
+    total_count = sum(surface_counts.values())
+    if total_count == 0:
+        return ("left", "right", "top", "bottom")
+    if surface_counts["left"] == surface_counts["right"]:
+        return ("top", "bottom", "left", "right")
+    if surface_counts["left"] < surface_counts["right"]:
+        return ("left", "top", "bottom", "right")
+    return ("right", "top", "bottom", "left")
+
+
 def normalize_moment_case(inputs: BeamDesignInputSet, moment_case: str) -> str:
     if not inputs.has_negative_design:
         return "positive"
@@ -203,10 +346,13 @@ def build_section_rebar_details(
 ) -> SectionRebarDetails:
     top_arrangement, bottom_arrangement = _select_arrangements(inputs, moment_case)
     longitudinal_mark = longitudinal_bar_mark(inputs.materials.main_steel_yield_ksc)
+    torsion_layout = compute_torsion_bar_layout(inputs, moment_case)
     return SectionRebarDetails(
         top_lines=_format_arrangement_layers(top_arrangement, longitudinal_mark),
         bottom_lines=_format_arrangement_layers(bottom_arrangement, longitudinal_mark),
         stirrup_line=_format_stirrup_detail(inputs, stirrup_spacing_cm),
+        torsion_side_lines=torsion_layout.detail_lines,
+        torsion_warning=torsion_layout.warning,
     )
 
 
@@ -359,6 +505,272 @@ def _format_stirrup_detail(inputs: BeamDesignInputSet, stirrup_spacing_cm: float
         spacing_mm = int(round(stirrup_spacing_cm * 10))
         spacing_text = f" @ {spacing_mm} mm"
     return f"{stirrup_bar_mark(inputs.materials.shear_steel_yield_ksc)}{inputs.shear.stirrup_diameter_mm}, {inputs.shear.legs_per_plane} legs{spacing_text}"
+
+
+def _format_torsion_side_lines(inputs: BeamDesignInputSet) -> list[str]:
+    return compute_torsion_bar_layout(inputs, "positive").detail_lines
+
+
+def _evenly_distribute_side_bar_positions(y_min_cm: float, y_max_cm: float, count: int) -> list[float]:
+    if count <= 1:
+        return [(y_min_cm + y_max_cm) / 2.0]
+    spacing_cm = (y_max_cm - y_min_cm) / (count + 1)
+    return [y_min_cm + (spacing_cm * (index + 1)) for index in range(count)]
+
+
+def torsion_bar_spacing_warning(inputs: BeamDesignInputSet, moment_case: str = "positive") -> str:
+    return compute_torsion_bar_layout(inputs, moment_case).warning
+
+
+def _torsion_perimeter_geometry(inputs: BeamDesignInputSet, bar_diameter_mm: int) -> _TorsionPerimeterGeometry:
+    cover = inputs.geometry.cover_cm
+    stirrup_diameter_cm = inputs.shear.stirrup_diameter_mm / 10.0
+    bar_radius_cm = bar_diameter_mm / 20.0
+    x_left_cm = cover + stirrup_diameter_cm + bar_radius_cm
+    x_right_cm = inputs.geometry.width_cm - x_left_cm
+    y_top_cm = cover + stirrup_diameter_cm + bar_radius_cm
+    y_bottom_cm = inputs.geometry.depth_cm - y_top_cm
+    return _TorsionPerimeterGeometry(
+        x_left_cm=x_left_cm,
+        x_right_cm=x_right_cm,
+        y_top_cm=y_top_cm,
+        y_bottom_cm=y_bottom_cm,
+    )
+
+
+def _compose_torsion_surface_layout(
+    surface_counts: dict[str, int],
+    perimeter: _TorsionPerimeterGeometry,
+    bar_diameter_mm: int,
+    occupied_points: list[BarPoint],
+    minimum_clear_cm: float,
+) -> list[BarPoint] | None:
+    points: list[BarPoint] = []
+    for surface_name in ("left", "right"):
+        side_points = _build_side_surface_points(
+            surface_name,
+            surface_counts[surface_name],
+            perimeter,
+            bar_diameter_mm,
+            occupied_points,
+            minimum_clear_cm,
+        )
+        if side_points is None:
+            return None
+        points.extend(side_points)
+
+    for surface_name in ("top", "bottom"):
+        surface_points = _build_top_bottom_surface_points(
+            surface_name,
+            surface_counts[surface_name],
+            perimeter,
+            bar_diameter_mm,
+            minimum_clear_cm,
+        )
+        if surface_points is None:
+            return None
+        points.extend(surface_points)
+
+    if not _layout_points_are_clear(points, occupied_points, minimum_clear_cm):
+        return None
+    return points
+
+
+def _build_side_surface_points(
+    surface_name: str,
+    count: int,
+    perimeter: _TorsionPerimeterGeometry,
+    bar_diameter_mm: int,
+    occupied_points: list[BarPoint],
+    minimum_clear_cm: float,
+) -> list[BarPoint] | None:
+    if count <= 0:
+        return []
+    x_cm = perimeter.x_left_cm if surface_name == "left" else perimeter.x_right_cm
+    y_top_anchor_cm, y_bottom_anchor_cm = _side_surface_anchor_positions(
+        surface_name,
+        x_cm,
+        perimeter,
+        occupied_points,
+    )
+    if y_top_anchor_cm is None or y_bottom_anchor_cm is None:
+        return None
+    y_positions = _evenly_distribute_side_bar_positions(y_top_anchor_cm, y_bottom_anchor_cm, count)
+    points = [
+        BarPoint(
+            x_cm=x_cm,
+            y_cm=y_cm,
+            diameter_mm=bar_diameter_mm,
+            layer_index=index,
+            group_name=surface_name,
+        )
+        for index, y_cm in enumerate(y_positions, start=1)
+    ]
+    if not _layout_points_are_clear(points, occupied_points, minimum_clear_cm):
+        return None
+    return points
+
+
+def _side_surface_anchor_positions(
+    surface_name: str,
+    x_cm: float,
+    perimeter: _TorsionPerimeterGeometry,
+    occupied_points: list[BarPoint],
+) -> tuple[float | None, float | None]:
+    top_anchor = min(occupied_points, key=lambda point: point.y_cm, default=None)
+    bottom_anchor = max(occupied_points, key=lambda point: point.y_cm, default=None)
+    if top_anchor is None or bottom_anchor is None:
+        return (None, None)
+    return (top_anchor.y_cm, bottom_anchor.y_cm)
+
+
+def _build_top_bottom_surface_points(
+    surface_name: str,
+    count: int,
+    perimeter: _TorsionPerimeterGeometry,
+    bar_diameter_mm: int,
+    minimum_clear_cm: float,
+) -> list[BarPoint] | None:
+    if count <= 0:
+        return []
+    center_spacing_cm = minimum_clear_cm + (bar_diameter_mm / 10.0)
+    span_cm = max(perimeter.x_right_cm - perimeter.x_left_cm, 0.0)
+    if span_cm <= 0:
+        return None
+    if count > max(int(math.floor(span_cm / center_spacing_cm)) - 1, 1):
+        return None
+    axis_positions = _interior_surface_positions(perimeter.x_left_cm, perimeter.x_right_cm, count)
+    y_cm = perimeter.y_top_cm if surface_name == "top" else perimeter.y_bottom_cm
+    return [
+        BarPoint(x_cm=x_cm, y_cm=y_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name=surface_name)
+        for index, x_cm in enumerate(axis_positions, start=1)
+    ]
+
+
+def _max_surface_points(
+    surface_name: str,
+    axis_start_cm: float,
+    axis_end_cm: float,
+    fixed_axis_cm: float,
+    bar_diameter_mm: int,
+    minimum_clear_cm: float,
+) -> list[BarPoint]:
+    center_spacing_cm = minimum_clear_cm + (bar_diameter_mm / 10.0)
+    span_cm = max(axis_end_cm - axis_start_cm, 0.0)
+    max_count = max(int(math.floor(span_cm / center_spacing_cm)) - 1, 1)
+    points: list[BarPoint] = []
+    for count in range(1, max_count + 1):
+        axis_positions = _interior_surface_positions(axis_start_cm, axis_end_cm, count)
+        points = [
+            (
+                BarPoint(x_cm=fixed_axis_cm, y_cm=axis_value, diameter_mm=bar_diameter_mm, layer_index=index, group_name=surface_name)
+                if surface_name in {"left", "right"}
+                else BarPoint(x_cm=axis_value, y_cm=fixed_axis_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name=surface_name)
+            )
+            for index, axis_value in enumerate(axis_positions, start=1)
+        ]
+    return points
+
+
+def _interior_surface_positions(start_cm: float, end_cm: float, count: int) -> list[float]:
+    if count <= 0:
+        return []
+    if count == 1:
+        return [(start_cm + end_cm) / 2.0]
+    spacing_cm = (end_cm - start_cm) / (count + 1)
+    return [start_cm + (spacing_cm * (index + 1)) for index in range(count)]
+
+
+def _torsion_surface_slots(inputs: BeamDesignInputSet, bar_diameter_mm: int) -> dict[str, list[BarPoint]]:
+    cover = inputs.geometry.cover_cm
+    stirrup_diameter_cm = inputs.shear.stirrup_diameter_mm / 10.0
+    bar_radius_cm = bar_diameter_mm / 20.0
+    min_clear_cm = inputs.geometry.minimum_clear_spacing_cm
+    center_spacing_cm = min_clear_cm + (bar_diameter_mm / 10.0)
+
+    x_left_cm = cover + stirrup_diameter_cm + bar_radius_cm
+    x_right_cm = inputs.geometry.width_cm - x_left_cm
+    y_top_cm = cover + stirrup_diameter_cm + bar_radius_cm
+    y_bottom_cm = inputs.geometry.depth_cm - y_top_cm
+
+    left_y_positions = _surface_axis_positions(y_top_cm, y_bottom_cm, center_spacing_cm)
+    top_x_positions = _surface_axis_positions(x_left_cm, x_right_cm, center_spacing_cm)
+
+    return {
+        "left": [BarPoint(x_cm=x_left_cm, y_cm=y_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name="left") for index, y_cm in enumerate(left_y_positions, start=1)],
+        "right": [BarPoint(x_cm=x_right_cm, y_cm=y_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name="right") for index, y_cm in enumerate(left_y_positions, start=1)],
+        "top": [BarPoint(x_cm=x_cm, y_cm=y_top_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name="top") for index, x_cm in enumerate(top_x_positions, start=1)],
+        "bottom": [BarPoint(x_cm=x_cm, y_cm=y_bottom_cm, diameter_mm=bar_diameter_mm, layer_index=index, group_name="bottom") for index, x_cm in enumerate(top_x_positions, start=1)],
+    }
+
+
+def _surface_axis_positions(start_cm: float, end_cm: float, center_spacing_cm: float) -> list[float]:
+    span_cm = max(end_cm - start_cm, 0.0)
+    if span_cm <= 0:
+        return [(start_cm + end_cm) / 2.0]
+    slot_count = max(int(math.floor(span_cm / center_spacing_cm)) + 1, 1)
+    actual_spacing_cm = 0.0 if slot_count == 1 else span_cm / (slot_count - 1)
+    raw_positions = [start_cm + (actual_spacing_cm * index) for index in range(slot_count)]
+    center_cm = (start_cm + end_cm) / 2.0
+    return sorted(raw_positions, key=lambda value: (abs(value - center_cm), value))
+
+
+def _bar_candidate_is_clear(candidate: BarPoint, occupied_points: list[BarPoint], minimum_clear_cm: float) -> bool:
+    for occupied in occupied_points:
+        required_center_distance_cm = _required_center_distance_cm(candidate, occupied, minimum_clear_cm)
+        if math.dist((candidate.x_cm, candidate.y_cm), (occupied.x_cm, occupied.y_cm)) < required_center_distance_cm - 1e-9:
+            return False
+    return True
+
+
+def _layout_points_are_clear(
+    candidate_points: list[BarPoint],
+    occupied_points: list[BarPoint],
+    minimum_clear_cm: float,
+) -> bool:
+    for index, point in enumerate(candidate_points):
+        if not _bar_candidate_is_clear(point, [*occupied_points, *candidate_points[:index]], minimum_clear_cm):
+            return False
+    return True
+
+
+def _minimum_clear_spacing_cm(points: list[BarPoint]) -> float | None:
+    if len(points) < 2:
+        return None
+    minimum_clear_cm: float | None = None
+    for index, point in enumerate(points[:-1]):
+        for other_point in points[index + 1 :]:
+            center_distance_cm = math.dist((point.x_cm, point.y_cm), (other_point.x_cm, other_point.y_cm))
+            clear_spacing_cm = center_distance_cm - (point.diameter_mm / 20.0) - (other_point.diameter_mm / 20.0)
+            if minimum_clear_cm is None or clear_spacing_cm < minimum_clear_cm:
+                minimum_clear_cm = clear_spacing_cm
+    return minimum_clear_cm
+
+
+def _required_center_distance_cm(first: BarPoint, second: BarPoint, minimum_clear_cm: float) -> float:
+    return (
+        (first.diameter_mm / 20.0)
+        + (second.diameter_mm / 20.0)
+        + minimum_clear_cm
+    )
+
+
+def _format_torsion_surface_distribution(points: list[BarPoint], bar_mark: str) -> list[str]:
+    if not points:
+        return []
+    counts: dict[str, tuple[int, int]] = {}
+    for point in points:
+        count, diameter_mm = counts.get(point.group_name, (0, point.diameter_mm))
+        counts[point.group_name] = (count + 1, diameter_mm)
+    face_order = ["left", "right", "top", "bottom"]
+    lines: list[str] = []
+    for face_name in face_order:
+        if face_name not in counts:
+            continue
+        count, diameter_mm = counts[face_name]
+        label = face_name.capitalize()
+        lines.append(f"{label} face: {count}{bar_mark}{diameter_mm}")
+    return lines
 
 
 def ordered_layer_bars(layer) -> list[tuple[int, str]]:
