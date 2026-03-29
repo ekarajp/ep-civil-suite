@@ -219,6 +219,14 @@ def calculate_deflection_check(
     )
 
 
+def _deflection_not_considered_result() -> DeflectionCheckResults:
+    return DeflectionCheckResults(
+        status="Not considered",
+        note="Deflection was not included in this calculation run.",
+        verification_status=VerificationStatus.VERIFIED_CODE,
+    )
+
+
 def validate_spacing_warnings(
     geometry: BeamGeometryInput,
     positive_bending: PositiveBendingInput,
@@ -276,17 +284,20 @@ def validate_reinforcement_area_warnings(
 ) -> list[str]:
     warning_messages: list[str] = []
     positive_results = calculate_positive_bending_design(materials, geometry, positive_bending, design_inputs)
+    as_clause = _flexural_as_clause_reference(design_inputs.metadata.design_code)
 
     if positive_results.as_status != "OK":
         warning_messages.append(
-            "Positive bending reinforcement does not satisfy the required reinforcement area limits."
+            "Positive bending reinforcement does not satisfy the required reinforcement area limits. "
+            f"{_format_aci_warning_reference(as_clause)}. This does not satisfy the A_s limit requirements."
         )
 
     if include_negative:
         negative_results = calculate_negative_bending_design(materials, geometry, negative_bending, design_inputs)
         if negative_results.as_status != "OK":
             warning_messages.append(
-                "Negative bending reinforcement does not satisfy the required reinforcement area limits."
+                "Negative bending reinforcement does not satisfy the required reinforcement area limits. "
+                f"{_format_aci_warning_reference(as_clause)}. This does not satisfy the A_s limit requirements."
             )
     return warning_messages
 
@@ -296,19 +307,28 @@ def validate_shear_warnings(
     shear_results: ShearDesignResults,
 ) -> list[str]:
     warning_messages: list[str] = []
+    shear_strength_clause = _shear_strength_clause_reference(design_inputs.metadata.design_code)
+    shear_reinf_clause = _shear_reinforcement_clause_reference(design_inputs.metadata.design_code)
     if shear_results.section_change_required and shear_results.section_change_note:
-        warning_messages.append(shear_results.section_change_note)
+        warning_messages.append(
+            f"{shear_results.section_change_note.rstrip('.')} "
+            f"{_format_aci_warning_reference(shear_reinf_clause)}. This exceeds the permitted shear reinforcement contribution."
+        )
     if shear_results.phi_vn_kg < design_inputs.shear.factored_shear_kg and not shear_results.section_change_required:
         warning_messages.append(
-            "Shear strength is insufficient because the applied shear force exceeds the design shear capacity, V_u > phi V_n."
+            "Shear strength is insufficient because the applied shear force exceeds the design shear capacity, V_u > phi V_n. "
+            f"{_format_aci_warning_reference(shear_strength_clause)}. This does not satisfy the beam shear strength requirements."
         )
     if shear_results.review_note:
-        warning_messages.extend(note for note in shear_results.review_note.split(". ") if note)
+        for note in shear_results.review_note.split(". "):
+            if not note:
+                continue
+            warning_messages.append(_formalize_shear_note(note, design_inputs.metadata.design_code))
     return [message if message.endswith(".") else f"{message}." for message in warning_messages]
 
 
 def validate_torsion_warnings(torsion_results: TorsionDesignResults) -> list[str]:
-    return [message if message.endswith(".") else f"{message}." for message in torsion_results.warnings]
+    return [_formalize_torsion_warning(message, torsion_results) for message in torsion_results.warnings]
 
 
 def _compose_combined_shear_torsion_results(
@@ -518,12 +538,16 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
             design_inputs.negative_bending,
             design_inputs,
         )
-    deflection_results = calculate_deflection_check(
-        design_inputs.materials,
-        design_inputs.geometry,
-        design_inputs.positive_bending,
-        design_inputs.negative_bending,
-        design_inputs.deflection,
+    deflection_results = (
+        calculate_deflection_check(
+            design_inputs.materials,
+            design_inputs.geometry,
+            design_inputs.positive_bending,
+            design_inputs.negative_bending,
+            design_inputs.deflection,
+        )
+        if design_inputs.consider_deflection
+        else _deflection_not_considered_result()
     )
     warnings = [
         *validate_spacing_warnings(
@@ -544,7 +568,8 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
         *validate_shear_warnings(design_inputs, shear_results),
         *validate_torsion_warnings(torsion_results),
     ]
-    review_flags = _build_review_flags(negative_results, deflection_results)
+    warnings = [_formalize_general_warning(message, design_inputs.metadata.design_code) for message in warnings]
+    review_flags = _build_review_flags(negative_results, deflection_results, consider_deflection=design_inputs.consider_deflection)
     overall_status, overall_note = _calculate_overall_assessment(
         design_inputs,
         geometry_results,
@@ -766,8 +791,12 @@ def _to_app_shear_results(engine_results) -> ShearDesignResults:
 def _build_review_flags(
     negative_results: FlexuralDesignResults | None,
     deflection_results: DeflectionCheckResults,
+    *,
+    consider_deflection: bool,
 ) -> list[ReviewFlag]:
     review_flags: list[ReviewFlag] = []
+    if not consider_deflection:
+        return review_flags
     review_flags.append(
         ReviewFlag(
             title="Deflection module",
@@ -835,6 +864,142 @@ def _calculate_overall_assessment(
     if review_flags:
         return "PASS WITH REVIEW", "Strength and detailing checks pass, but additional engineering review items remain open."
     return "PASS", "All current strength and detailing checks are satisfied."
+
+
+def _flexural_as_clause_reference(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 10.5.1"
+    return f"{_design_code_label(design_code)} 9.6.1.2"
+
+
+def _shear_strength_clause_reference(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.3 and 11.4"
+    if design_code == DesignCode.ACI318_14:
+        return "ACI 318-14 22.5.5.1 and 9.7.6.2"
+    return "ACI 318-19 Table 22.5.5.1 and 9.7.6.2"
+
+
+def _shear_reinforcement_clause_reference(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.4.7.2"
+    if design_code == DesignCode.ACI318_14:
+        return "ACI 318-14 Chapter 9 and Chapter 22 beam shear-strength limits"
+    return "ACI 318-19 Chapter 9 and Table 22.5.5.1"
+
+
+def _shear_minimum_clause_reference(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.4.6.3"
+    return f"{_design_code_label(design_code)} 9.6.3"
+
+
+def _design_code_label(design_code: DesignCode) -> str:
+    mapping = {
+        DesignCode.ACI318_99: "ACI 318-99",
+        DesignCode.ACI318_11: "ACI 318-11",
+        DesignCode.ACI318_14: "ACI 318-14",
+        DesignCode.ACI318_19: "ACI 318-19",
+    }
+    return mapping[design_code]
+
+
+def _format_aci_warning_reference(reference: str) -> str:
+    normalized = reference.strip()
+    if not normalized.startswith("ACI 318-"):
+        return normalized
+
+    _, code, remainder = normalized.split(" ", 2)
+    code_label = f"ACI{code}"
+
+    def _format_part(part: str) -> str:
+        part = part.strip()
+        if not part:
+            return ""
+        if part.startswith("ACI 318-"):
+            return _format_aci_warning_reference(part)
+        if part[0].isdigit():
+            return f"{code_label} - Clause {part}"
+        if part.startswith("Clause ") or part.startswith("Table ") or part.startswith("Chapter "):
+            return f"{code_label} - {part}"
+        return f"{code_label} - {part}"
+
+    if " together with " in remainder:
+        left, right = remainder.split(" together with ", 1)
+        return f"{_format_part(left)} together with {_format_part(right)}"
+    if " and " in remainder:
+        left, right = remainder.split(" and ", 1)
+        return f"{_format_part(left)} and {_format_part(right)}"
+    return _format_part(remainder)
+
+
+def _torsion_spacing_clause_reference(code_version: str) -> str:
+    mapping = {
+        "ACI 318-99": "ACI 318-99 11.6.6.1",
+        "ACI 318-11": "ACI 318-11 11.5.6.1",
+        "ACI 318-14": "ACI 318-14 25.7.1.2",
+        "ACI 318-19": "ACI 318-19 25.7.1.2",
+    }
+    return mapping.get(code_version, code_version)
+
+
+def _torsion_cross_section_clause_reference(code_version: str) -> str:
+    mapping = {
+        "ACI 318-99": "ACI 318-99 11.6.3.1",
+        "ACI 318-11": "ACI 318-11 11.5.3.1",
+        "ACI 318-14": "ACI 318-14 22.7.7",
+        "ACI 318-19": "ACI 318-19 22.7.7",
+    }
+    return mapping.get(code_version, code_version)
+
+
+def _formalize_shear_note(message: str, design_code: DesignCode) -> str:
+    normalized = message.strip().rstrip(".")
+    if "Av" in normalized or "lambda_s" in normalized:
+        clause = _shear_minimum_clause_reference(design_code)
+        if design_code == DesignCode.ACI318_19:
+            clause = f"{clause} together with ACI 318-19 Table 22.5.5.1"
+        return (
+            f"{normalized}. {_format_aci_warning_reference(clause)}. This does not satisfy the minimum shear reinforcement trigger/check basis."
+        )
+    return (
+        f"{normalized}. {_format_aci_warning_reference(_shear_reinforcement_clause_reference(design_code))}. "
+        "This does not satisfy the applicable shear detailing requirements."
+    )
+
+
+def _formalize_torsion_warning(message: str, torsion_results: TorsionDesignResults) -> str:
+    normalized = message.strip().rstrip(".")
+    code = torsion_results.code_version
+    if "required At/s" in normalized:
+        clause = torsion_results.transverse_reinf_required_governing or f"{code} torsion transverse reinforcement provisions"
+        normalized = normalized.replace("At/s", "A_t/s")
+        return f"{normalized}. {_format_aci_warning_reference(clause)}. This does not satisfy the required torsion transverse reinforcement provisions."
+    if "required Al" in normalized:
+        clause = torsion_results.longitudinal_reinf_required_governing or f"{code} torsion longitudinal reinforcement provisions"
+        normalized = normalized.replace("Al", "A_l")
+        return f"{normalized}. {_format_aci_warning_reference(clause)}. This does not satisfy the required torsion longitudinal reinforcement provisions."
+    if "maximum spacing permitted for torsion" in normalized:
+        return f"{normalized}. {_format_aci_warning_reference(_torsion_spacing_clause_reference(code))}. This does not satisfy the maximum permitted torsion stirrup spacing."
+    if "cross-sectional limit check" in normalized:
+        return f"{normalized}. {_format_aci_warning_reference(_torsion_cross_section_clause_reference(code))}. This does not satisfy the torsional cross-sectional strength requirement."
+    if "Closed stirrups are required" in normalized:
+        return f"{normalized}. This does not satisfy the detailing assumptions of the implemented torsion procedure and is not suitable for practical construction."
+    if "Compatibility torsion" in normalized:
+        return f"{normalized}. This is an analysis assumption notice and should be confirmed by the design engineer."
+    if "alternative torsion design procedure" in normalized:
+        return f"{normalized}. This is an informational code note and not a design failure."
+    return f"{normalized}."
+
+
+def _formalize_general_warning(message: str, design_code: DesignCode) -> str:
+    normalized = message.strip()
+    if "minimum clear spacing requirement" in normalized:
+        return (
+            f"{normalized.rstrip('.')} This does not satisfy the specified minimum clear spacing requirement "
+            "and is not suitable for practical construction."
+        )
+    return normalized if normalized.endswith(".") else f"{normalized}."
 
 
 def _calculate_beta_1(fc_prime_ksc: float) -> float:

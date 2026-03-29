@@ -350,6 +350,13 @@ def test_negative_bending_matches_current_negative_logic() -> None:
 def test_full_results_expose_review_flags_and_overall_status() -> None:
     results = calculate_full_design_results(BeamDesignInputSet())
 
+    assert results.overall_status == "PASS"
+    assert len(results.review_flags) == 0
+
+
+def test_full_results_only_expose_deflection_review_flag_when_requested() -> None:
+    results = calculate_full_design_results(BeamDesignInputSet(consider_deflection=True))
+
     assert results.overall_status == "PASS WITH REVIEW"
     assert len(results.review_flags) == 1
     assert results.review_flags[0].title == "Deflection module"

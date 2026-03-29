@@ -97,6 +97,39 @@ def test_build_inputs_from_state_uses_main_design_code_for_torsion(monkeypatch) 
     assert inputs.torsion.provided_longitudinal_bar_fy_ksc == 4000.0
 
 
+def test_build_inputs_from_state_preserves_consider_deflection_checkbox(monkeypatch) -> None:
+    default_inputs = workspace_page.load_default_inputs()
+    session_state = type("SessionState", (dict,), {"__getattr__": dict.__getitem__, "__setattr__": dict.__setitem__})()
+    session_state.update(workspace_page.build_default_state(default_inputs))
+    session_state["consider_deflection"] = True
+    session_state["project_date_auto_value"] = "2026-03-29 12:10"
+
+    monkeypatch.setattr(workspace_page.st, "session_state", session_state)
+
+    inputs = workspace_page.build_inputs_from_state()
+
+    assert inputs.consider_deflection is True
+
+
+def test_sync_layer_group_counts_resets_middle_bar_count_when_diameter_is_empty(monkeypatch) -> None:
+    session_state = type("SessionState", (dict,), {"__getattr__": dict.__getitem__, "__setattr__": dict.__setitem__})()
+    session_state.update(
+        {
+            "pb_tens_layer_1_group_a_diameter_option": 12,
+            "pb_tens_layer_1_group_a_count": 0,
+            "pb_tens_layer_1_group_b_diameter_option": "-",
+            "pb_tens_layer_1_group_b_count": 3,
+        }
+    )
+
+    monkeypatch.setattr(workspace_page.st, "session_state", session_state)
+
+    workspace_page._sync_layer_group_counts_from_selected_diameters("pb_tens", 1)
+
+    assert session_state["pb_tens_layer_1_group_a_count"] == 2
+    assert session_state["pb_tens_layer_1_group_b_count"] == 0
+
+
 def test_build_inputs_from_state_uses_selected_fyl_for_torsion_longitudinal_steel(monkeypatch) -> None:
     default_inputs = workspace_page.load_default_inputs()
     session_state = type("SessionState", (dict,), {"__getattr__": dict.__getitem__, "__setattr__": dict.__setitem__})()
@@ -176,6 +209,31 @@ def test_include_torsion_toggle_restores_previous_torsion_inputs(monkeypatch) ->
     assert session_state["torsion_longitudinal_fy_grade_option"] == 4000
     assert session_state["torsion_longitudinal_fy_ksc"] == 4000.0
     assert session_state["torsion_longitudinal_count"] == 6
+
+
+def test_review_flags_tab_is_omitted_when_no_review_flags_exist(monkeypatch) -> None:
+    recorded_labels: list[list[str]] = []
+
+    class DummyContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_tabs(labels):
+        recorded_labels.append(list(labels))
+        return [DummyContext() for _ in labels]
+
+    monkeypatch.setattr(workspace_page.st, "tabs", fake_tabs)
+    monkeypatch.setattr(workspace_page.st, "success", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workspace_page.st, "warning", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workspace_page.st, "json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workspace_page.st, "markdown", lambda *args, **kwargs: None)
+
+    workspace_page.render_warnings_and_flags(type("Results", (), {"warnings": [], "review_flags": []})())
+
+    assert recorded_labels == [["Warnings", "Raw Results"]]
 
 
 def test_shear_torsion_interaction_diagram_html_shows_shared_stirrup_rule() -> None:

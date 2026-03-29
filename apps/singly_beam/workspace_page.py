@@ -155,6 +155,7 @@ def build_default_state(inputs: BeamDesignInputSet) -> dict[str, object]:
         "torsion_longitudinal_fy_grade_option": _steel_grade_option(inputs.torsion.provided_longitudinal_bar_fy_ksc),
         "torsion_longitudinal_fy_ksc": float(inputs.torsion.provided_longitudinal_bar_fy_ksc),
         "torsion_longitudinal_count": inputs.torsion.provided_longitudinal_bar_count,
+        "consider_deflection": inputs.consider_deflection,
         "deflection_beam_type": inputs.deflection.beam_type.value,
         "beam_type_factor_x": inputs.deflection.beam_type_factor_x,
         "span_length_m": inputs.deflection.span_length_m,
@@ -262,6 +263,7 @@ def render_input_workspace() -> None:
         )
         st.caption("Simple Beam = positive-moment workflow only. Continuous Beam = positive and negative moment design.")
         st.checkbox("Include Torsion Design", key="include_torsion_design", on_change=_handle_include_torsion_design_change)
+        st.checkbox("Consider Deflection", key="consider_deflection")
 
     with st.expander("3. Material Properties: f'c, fy, fvy", expanded=True):
         cols = st.columns(3, gap="medium")
@@ -448,14 +450,14 @@ def _render_torsion_section(preview_results) -> None:
         )
         _render_field_helper(f"Maximum drawable Al count = {max_drawable_al_count}")
         if max_drawable_al_count == 0 and st.session_state.torsion_longitudinal_diameter_mm > 0:
-            st.markdown(
-                "<div class='design-banner fail'>No drawable Al bar position is available for the current section and spacing rules.</div>",
-                unsafe_allow_html=True,
+            _render_warning_banner(
+                "No drawable Al bar position is available for the current section and spacing rules. "
+                "This does not satisfy the specified placement and clear-spacing requirements and is not suitable for practical construction."
             )
         elif st.session_state.torsion_longitudinal_count >= max_drawable_al_count > 0:
-            st.markdown(
-                f"<div class='design-banner fail'>Reached maximum of drawable Al bars for the current section layout: {max_drawable_al_count} bars.</div>",
-                unsafe_allow_html=True,
+            _render_warning_banner(
+                f"Reached maximum of drawable Al bars for the current section layout: {max_drawable_al_count} bars. "
+                "Any additional Al bar would violate the specified clear-spacing requirement and would not be suitable for practical construction."
             )
 
     bottom_cols = st.columns(3, gap="medium")
@@ -505,10 +507,7 @@ def _render_torsion_section(preview_results) -> None:
             unsafe_allow_html=True,
         )
     for warning in torsion.warnings:
-        st.markdown(
-            f"<div class='design-banner fail'>{warning}</div>",
-            unsafe_allow_html=True,
-        )
+        _render_warning_banner(_formalize_torsion_warning_text(warning, torsion))
     current_inputs = build_inputs_from_state()
     spacing_warnings = [
         torsion_bar_spacing_warning(current_inputs, moment_case)
@@ -516,10 +515,7 @@ def _render_torsion_section(preview_results) -> None:
     ]
     for spacing_warning in spacing_warnings:
         if spacing_warning:
-            st.markdown(
-                f"<div class='design-banner fail'>{spacing_warning}</div>",
-                unsafe_allow_html=True,
-            )
+            _render_warning_banner(_formalize_constructability_warning_text(spacing_warning))
 
 
 def render_reinforcement_editor(prefix: str, label: str, preview_inputs=None, preview_results=None, *, show_phi: bool = False) -> None:
@@ -571,8 +567,8 @@ def render_reinforcement_editor(prefix: str, label: str, preview_inputs=None, pr
                 f"Layer {layer_index} Corner Bar custom dia. (mm)",
                 allow_empty=True,
             )
+        _sync_layer_group_counts_from_selected_diameters(prefix, layer_index)
         group_a_option = st.session_state[f"{prefix}_layer_{layer_index}_group_a_diameter_option"]
-        st.session_state[f"{prefix}_layer_{layer_index}_group_a_count"] = 0 if group_a_option == "-" else 2
         with cols[1]:
             st.markdown("<div class='input-field-label'>Middle Bar dia. (mm)</div>", unsafe_allow_html=True)
             st.selectbox(
@@ -602,11 +598,17 @@ def render_reinforcement_editor(prefix: str, label: str, preview_inputs=None, pr
         else:
             _render_field_helper()
         if st.session_state[f"{prefix}_layer_{layer_index}_group_a_count"] == 0 and st.session_state[f"{prefix}_layer_{layer_index}_group_b_count"] > 0:
-            st.warning("Middle Bar requires Corner Bar in the same layer.")
+            _render_warning_banner(
+                "Middle Bar requires Corner Bar in the same layer. "
+                "This does not satisfy the specified layer arrangement requirement and is not suitable for practical construction."
+            )
         if spacing_results is not None:
             layer_spacing = spacing_results.layers()[layer_index - 1]
             if layer_spacing.status == "NOT OK":
-                st.markdown(f"<div class='layer-inline-warning'>{layer_spacing.message}</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div class='layer-inline-warning'>{_warning_text_to_html(_formalize_constructability_warning_text(layer_spacing.message))}</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 def _preview_current_design_state():
@@ -675,7 +677,8 @@ def _flexure_area_warnings_for_prefix(prefix: str, preview_inputs, preview_resul
     if design_results.as_provided_cm2 < design_results.as_min_cm2:
         warnings.append(
             f"Provided tension reinforcement area, A<sub>s,total</sub> = {format_number(design_results.as_provided_cm2)} cm<sup>2</sup>, "
-            f"is less than the minimum required area, A<sub>s,min</sub> = {format_number(design_results.as_min_cm2)} cm<sup>2</sup>."
+            f"is less than the minimum required area, A<sub>s,min</sub> = {format_number(design_results.as_min_cm2)} cm<sup>2</sup>. "
+            f"{_format_aci_warning_reference_for_ui(_flexural_as_clause_reference_for_ui(preview_inputs.metadata.design_code))}. This does not satisfy the required A<sub>s</sub> limit."
         )
     if (
         preview_inputs.metadata.design_code == DesignCode.ACI318_99
@@ -683,7 +686,8 @@ def _flexure_area_warnings_for_prefix(prefix: str, preview_inputs, preview_resul
     ):
         warnings.append(
             f"Provided tension reinforcement area, A<sub>s,total</sub> = {format_number(design_results.as_provided_cm2)} cm<sup>2</sup>, "
-            f"exceeds the maximum permitted area, A<sub>s,max</sub> = {format_number(design_results.as_max_cm2)} cm<sup>2</sup>."
+            f"exceeds the maximum permitted area, A<sub>s,max</sub> = {format_number(design_results.as_max_cm2)} cm<sup>2</sup>. "
+            f"{_format_aci_warning_reference_for_ui(_flexural_as_clause_reference_for_ui(preview_inputs.metadata.design_code))}. This does not satisfy the required A<sub>s</sub> limit."
         )
     return warnings
 
@@ -783,15 +787,17 @@ def _render_shear_header_feedback(preview_results) -> None:
             vc_action = "Vc is reduced using this factor." if shear.size_effect_applied else "Vc is unchanged because the factor is 1.000."
             st.markdown(
                 "<div class='design-banner fail'>"
-                f"ACI 318-19 size effect check: Av &lt; Av,min, so &lambda;<sub>s</sub> = {format_ratio(shear.size_effect_factor, 3)}. "
-                f"{vc_action}"
+                f"ACI 318-19 size effect check: A<sub>v</sub> &lt; A<sub>v,min</sub>, so &lambda;<sub>s</sub> = {format_ratio(shear.size_effect_factor, 3)}. "
+                f"{vc_action} {_format_aci_warning_reference_for_ui(_shear_min_clause_reference_for_ui(DesignCode.ACI318_19) + ' together with ACI 318-19 Table 22.5.5.1')}. "
+                "This does not satisfy the minimum shear reinforcement requirement."
                 "</div>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
                 "<div class='design-banner fail'>"
-                "Av &lt; Av,min."
+                f"A<sub>v</sub> &lt; A<sub>v,min</sub>. {_format_aci_warning_reference_for_ui(_shear_min_clause_reference_for_ui(DesignCode(st.session_state.design_code)))}. "
+                "This does not satisfy the minimum shear reinforcement requirement."
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -831,14 +837,16 @@ def _render_shear_spacing_feedback() -> None:
         f"{format_number(upper_limit_cm)} cm."
     )
     if provided_spacing_cm < min_spacing_cm:
-        st.warning(
+        _render_warning_banner(
             f"Provided spacing {format_number(provided_spacing_cm)} cm is below the current minimum "
-            f"input range of {format_number(min_spacing_cm)} cm."
+            f"input range of {format_number(min_spacing_cm)} cm. This does not satisfy the specified input requirement and is not suitable for practical construction."
         )
     elif provided_spacing_cm > upper_limit_cm:
-        st.warning(
+        _render_warning_banner(
             f"Provided spacing {format_number(provided_spacing_cm)} cm does not meet the required maximum "
-            f"spacing of {format_number(upper_limit_cm)} cm. Governing limit: {governing_reason}."
+            f"spacing of {format_number(upper_limit_cm)} cm. Governing limit: {governing_reason}. "
+            f"{_format_aci_warning_reference_for_ui(_shear_spacing_clause_reference_for_ui(DesignCode(st.session_state.design_code), combined.active))}. "
+            "This does not satisfy the permitted stirrup spacing requirement."
         )
     else:
         st.success(
@@ -1146,21 +1154,28 @@ def render_flexural_phi_summary(inputs: BeamDesignInputSet, results, palette) ->
 
 
 def render_warnings_and_flags(results) -> None:
-    summary_tabs = st.tabs(["Warnings", "Review Flags", "Raw Results"])
+    tab_labels = ["Warnings"]
+    if results.review_flags:
+        tab_labels.append("Review Flags")
+    tab_labels.append("Raw Results")
+    summary_tabs = st.tabs(tab_labels)
     with summary_tabs[0]:
         if not results.warnings:
             st.success("No immediate reinforcement or spacing warnings.")
         for warning in results.warnings:
-            st.warning(warning)
-    with summary_tabs[1]:
-        for flag in results.review_flags:
-            st.markdown(
-                f"<div class='metric-card'><div class='metric-label'>{flag.title}</div>"
-                f"<div class='metric-value' style='font-size:0.95rem'>{flag.message}</div>"
-                f"<div class='metric-note'>{flag.severity.title()} | {flag.verification_status.value}</div></div>",
-                unsafe_allow_html=True,
-            )
-    with summary_tabs[2]:
+            _render_warning_banner(warning)
+    raw_tab_index = 1
+    if results.review_flags:
+        with summary_tabs[1]:
+            for flag in results.review_flags:
+                st.markdown(
+                    f"<div class='metric-card'><div class='metric-label'>{flag.title}</div>"
+                    f"<div class='metric-value' style='font-size:0.95rem'>{flag.message}</div>"
+                    f"<div class='metric-note'>{flag.severity.title()} | {flag.verification_status.value}</div></div>",
+                    unsafe_allow_html=True,
+                )
+        raw_tab_index = 2
+    with summary_tabs[raw_tab_index]:
         st.json(dataclass_to_dict(results), expanded=False)
 
 
@@ -1170,6 +1185,7 @@ def build_inputs_from_state() -> BeamDesignInputSet:
     torsion_longitudinal_fy_ksc = _resolved_grade_value("torsion_longitudinal_fy_grade_option", "torsion_longitudinal_fy_ksc")
     return BeamDesignInputSet(
         beam_type=BeamType(st.session_state.beam_type),
+        consider_deflection=bool(st.session_state.consider_deflection),
         metadata=ProjectMetadata(
             design_code=DesignCode(st.session_state.design_code),
             tag=str(st.session_state.project_tag),
@@ -1326,6 +1342,165 @@ def _torsion_longitudinal_area_from_state() -> float:
 
 def _workspace_state_keys(default_inputs: BeamDesignInputSet) -> set[str]:
     return {"project_date_auto_value", *build_default_state(default_inputs).keys()}
+
+
+def _sync_layer_group_counts_from_selected_diameters(prefix: str, layer_index: int) -> None:
+    group_a_option = st.session_state.get(f"{prefix}_layer_{layer_index}_group_a_diameter_option", "-")
+    st.session_state[f"{prefix}_layer_{layer_index}_group_a_count"] = 0 if group_a_option == "-" else 2
+
+    group_b_option = st.session_state.get(f"{prefix}_layer_{layer_index}_group_b_diameter_option", "-")
+    if group_b_option == "-":
+        st.session_state[f"{prefix}_layer_{layer_index}_group_b_count"] = 0
+
+
+def _flexural_as_clause_reference_for_ui(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label_for_ui(design_code)} 10.5.1"
+    return f"{_design_code_label_for_ui(design_code)} 9.6.1.2"
+
+
+def _shear_min_clause_reference_for_ui(design_code: DesignCode) -> str:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label_for_ui(design_code)} 11.4.6.3"
+    return f"{_design_code_label_for_ui(design_code)} 9.6.3"
+
+
+def _shear_spacing_clause_reference_for_ui(design_code: DesignCode, torsion_active: bool) -> str:
+    if torsion_active:
+        if design_code == DesignCode.ACI318_99:
+            return "ACI 318-99 11.4.5 together with 11.6.6.1"
+        if design_code == DesignCode.ACI318_11:
+            return "ACI 318-11 11.4.5 together with 11.5.6.1"
+        return f"{_design_code_label_for_ui(design_code)} 9.7.6.2 together with 25.7.1.2"
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+        return f"{_design_code_label_for_ui(design_code)} 11.4.5"
+    return f"{_design_code_label_for_ui(design_code)} 9.7.6.2"
+
+
+def _design_code_label_for_ui(design_code: DesignCode) -> str:
+    mapping = {
+        DesignCode.ACI318_99: "ACI 318-99",
+        DesignCode.ACI318_11: "ACI 318-11",
+        DesignCode.ACI318_14: "ACI 318-14",
+        DesignCode.ACI318_19: "ACI 318-19",
+    }
+    return mapping[design_code]
+
+
+def _format_aci_warning_reference_for_ui(reference: str) -> str:
+    normalized = reference.strip()
+    if not normalized.startswith("ACI 318-"):
+        return normalized
+
+    _, code, remainder = normalized.split(" ", 2)
+    code_label = f"ACI{code}"
+
+    def _format_part(part: str) -> str:
+        part = part.strip()
+        if not part:
+            return ""
+        if part.startswith("ACI 318-"):
+            return _format_aci_warning_reference_for_ui(part)
+        if part[0].isdigit():
+            return f"{code_label} - Clause {part}"
+        if part.startswith("Clause ") or part.startswith("Table ") or part.startswith("Chapter "):
+            return f"{code_label} - {part}"
+        return f"{code_label} - {part}"
+
+    if " together with " in remainder:
+        left, right = remainder.split(" together with ", 1)
+        return f"{_format_part(left)} together with {_format_part(right)}"
+    if " and " in remainder:
+        left, right = remainder.split(" and ", 1)
+        return f"{_format_part(left)} and {_format_part(right)}"
+    return _format_part(remainder)
+
+
+def _torsion_spacing_clause_reference_for_ui(code_version: str) -> str:
+    mapping = {
+        "ACI 318-99": "ACI 318-99 11.6.6.1",
+        "ACI 318-11": "ACI 318-11 11.5.6.1",
+        "ACI 318-14": "ACI 318-14 25.7.1.2",
+        "ACI 318-19": "ACI 318-19 25.7.1.2",
+    }
+    return mapping.get(code_version, code_version)
+
+
+def _torsion_cross_section_clause_reference_for_ui(code_version: str) -> str:
+    mapping = {
+        "ACI 318-99": "ACI 318-99 11.6.3.1",
+        "ACI 318-11": "ACI 318-11 11.5.3.1",
+        "ACI 318-14": "ACI 318-14 22.7.7",
+        "ACI 318-19": "ACI 318-19 22.7.7",
+    }
+    return mapping.get(code_version, code_version)
+
+
+def _formalize_constructability_warning_text(message: str) -> str:
+    normalized = message.strip().rstrip(".")
+    return (
+        f"{normalized}. This does not satisfy the specified minimum clear spacing requirement "
+        "and is not suitable for practical construction."
+    )
+
+
+def _formalize_torsion_warning_text(message: str, torsion_results) -> str:
+    normalized = message.strip().rstrip(".")
+    if "required At/s" in normalized:
+        clause = torsion_results.transverse_reinf_required_governing or f"{torsion_results.code_version} torsion transverse reinforcement provisions"
+        normalized = normalized.replace("At/s", "A_t/s")
+        return f"{normalized}. {_format_aci_warning_reference_for_ui(clause)}. This does not satisfy the required torsion transverse reinforcement provisions."
+    if "required Al" in normalized:
+        clause = torsion_results.longitudinal_reinf_required_governing or f"{torsion_results.code_version} torsion longitudinal reinforcement provisions"
+        normalized = normalized.replace("Al", "A_l")
+        return f"{normalized}. {_format_aci_warning_reference_for_ui(clause)}. This does not satisfy the required torsion longitudinal reinforcement provisions."
+    if "maximum spacing permitted for torsion" in normalized:
+        return f"{normalized}. {_format_aci_warning_reference_for_ui(_torsion_spacing_clause_reference_for_ui(torsion_results.code_version))}. This does not satisfy the maximum permitted torsion stirrup spacing."
+    if "cross-sectional limit check" in normalized:
+        return f"{normalized}. {_format_aci_warning_reference_for_ui(_torsion_cross_section_clause_reference_for_ui(torsion_results.code_version))}. This does not satisfy the torsional cross-sectional strength requirement."
+    if "alternative torsion design procedure" in normalized:
+        return f"{normalized}. This is an informational code note and not a design failure."
+    return f"{normalized}. This should be reviewed by the design engineer."
+
+
+def _render_warning_banner(message: str) -> None:
+    st.markdown(
+        f"<div class='design-banner fail'>{_warning_text_to_html(message)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _warning_text_to_html(message: str) -> str:
+    html = (
+        message.replace("<=", "&le;")
+        .replace(">=", "&ge;")
+        .replace(" < ", " &lt; ")
+        .replace(" > ", " &gt; ")
+    )
+    replacements = [
+        ("A_s,total", "A<sub>s,total</sub>"),
+        ("A_s,min", "A<sub>s,min</sub>"),
+        ("A_s,max", "A<sub>s,max</sub>"),
+        ("A_s", "A<sub>s</sub>"),
+        ("A_v,min", "A<sub>v,min</sub>"),
+        ("A_v", "A<sub>v</sub>"),
+        ("A_l", "A<sub>l</sub>"),
+        ("A_t/s", "A<sub>t</sub>/s"),
+        ("At/s", "A<sub>t</sub>/s"),
+        ("V_u", "V<sub>u</sub>"),
+        ("V_n", "V<sub>n</sub>"),
+        ("V_c", "V<sub>c</sub>"),
+        ("V_s", "V<sub>s</sub>"),
+        ("M_u", "M<sub>u</sub>"),
+        ("M_n", "M<sub>n</sub>"),
+        ("phi", "&phi;"),
+        ("lambda_s", "&lambda;<sub>s</sub>"),
+        ("f'c", "f&#8242;<sub>c</sub>"),
+        ("cm2", "cm<sup>2</sup>"),
+    ]
+    for old, new in replacements:
+        html = html.replace(old, new)
+    return html
 
 
 def _torsion_input_state_keys() -> tuple[str, ...]:

@@ -1074,7 +1074,14 @@ def _build_summary_section(inputs: BeamDesignInputSet, results: BeamDesignResult
     rows.extend(
         [
             ReportRow("Warnings", "-", f"{len(results.warnings)} warnings", f"{len(results.warnings)} warnings", "-", note="See workspace summary for details"),
-            ReportRow("Review flags", "-", f"{len(results.review_flags)} review flags", f"{len(results.review_flags)} review flags", "-", VerificationStatus.NEEDS_REVIEW.value),
+            ReportRow(
+                "Review flags",
+                "-",
+                f"{len(results.review_flags)} review flags",
+                f"{len(results.review_flags)} review flags",
+                "-",
+                VerificationStatus.NEEDS_REVIEW.value if results.review_flags else "None",
+            ),
         ]
     )
     return ReportSection(title="Final Design Summary", rows=rows)

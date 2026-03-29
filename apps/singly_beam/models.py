@@ -271,6 +271,7 @@ class DeflectionCheckInput:
 @dataclass(slots=True)
 class BeamDesignInputSet:
     beam_type: BeamType = BeamType.SIMPLE
+    consider_deflection: bool = False
     metadata: ProjectMetadata = field(default_factory=ProjectMetadata)
     materials: MaterialPropertiesInput = field(default_factory=MaterialPropertiesInput)
     geometry: BeamGeometryInput = field(default_factory=BeamGeometryInput)
