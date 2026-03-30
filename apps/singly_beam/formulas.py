@@ -15,6 +15,7 @@ from design.torsion import (
     TorsionDesignMaterialInput,
     TorsionSectionGeometryInput,
 )
+from design.torsion.torsion_units import kgf_m_to_n_mm, ksc_to_mpa
 from engines.common import (
     DEFAULT_EC_LOGIC as ENGINE_DEFAULT_EC_LOGIC,
     DEFAULT_ES_LOGIC as ENGINE_DEFAULT_ES_LOGIC,
@@ -380,6 +381,14 @@ def validate_torsion_warnings(torsion_results: TorsionDesignResults) -> list[str
     return [_formalize_torsion_warning(message, torsion_results) for message in torsion_results.warnings]
 
 
+def validate_combined_shear_torsion_warnings(combined_results: CombinedShearTorsionResults) -> list[str]:
+    if not combined_results.active or combined_results.design_status == "PASS":
+        return []
+    if combined_results.design_status_note:
+        return [combined_results.design_status_note]
+    return ["Combined shear-and-torsion design does not satisfy the implemented shared closed-stirrup check."]
+
+
 def validate_deflection_warnings(
     deflection_results: DeflectionCheckResults,
     *,
@@ -415,6 +424,7 @@ def validate_deflection_warnings(
 
 def _compose_combined_shear_torsion_results(
     design_inputs: BeamDesignInputSet,
+    geometry_results: BeamGeometryResults,
     shear_results: ShearDesignResults,
     torsion_results: TorsionDesignResults,
 ) -> CombinedShearTorsionResults:
@@ -438,6 +448,7 @@ def _compose_combined_shear_torsion_results(
             summary_note="",
             required_spacing_cm=shear_results.required_spacing_cm,
             spacing_limit_reason="Shear only",
+            design_status_note="",
         )
 
     if torsion_results.can_neglect_torsion:
@@ -464,9 +475,10 @@ def _compose_combined_shear_torsion_results(
             summary_note=ignore_message,
             required_spacing_cm=shear_results.required_spacing_cm,
             spacing_limit_reason="Torsion ignored",
+            design_status_note="",
         )
 
-    d_mm = design_inputs.geometry.depth_cm * 10.0
+    d_mm = geometry_results.d_plus_cm * 10.0
     # Convert the shear demand to the same shared-stirrup basis used elsewhere in this block: mm2/mm.
     # fy is entered in kgf/cm2, so the raw Av/s result is first obtained in cm2/mm and then converted to mm2/mm.
     shear_required_transverse_mm2_per_mm = _safe_divide(
@@ -496,6 +508,21 @@ def _compose_combined_shear_torsion_results(
         combined_required_transverse_mm2_per_mm,
         provided_transverse_mm2_per_mm,
     )
+    (
+        cross_section_limit_check_applied,
+        shear_section_stress_mpa,
+        torsion_section_stress_mpa,
+        cross_section_limit_lhs_mpa,
+        cross_section_limit_rhs_mpa,
+        cross_section_limit_ratio,
+        cross_section_limit_clause,
+        cross_section_ok,
+    ) = _evaluate_combined_shear_torsion_cross_section_limit(
+        design_inputs,
+        geometry_results,
+        shear_results,
+        torsion_results,
+    )
 
     governing_values = {
         "Shear": shear_required_transverse_mm2_per_mm,
@@ -503,12 +530,37 @@ def _compose_combined_shear_torsion_results(
         "Shear + Torsion": combined_required_transverse_mm2_per_mm,
     }
     governing_case = max(governing_values, key=governing_values.get)
-    design_status = "PASS" if capacity_ratio <= 1.0 + 1e-9 else "FAIL"
+    design_status = "PASS"
+    design_status_note = ""
+    if cross_section_limit_check_applied and not cross_section_ok:
+        governing_case = "Combined section limit"
+        design_status = "FAIL"
+        design_status_note = (
+            "Combined shear and torsion exceed the implemented solid-section stress limit. "
+            f"{_format_aci_warning_reference(cross_section_limit_clause)}. "
+            "This does not satisfy the combined section-strength check."
+        )
+    elif capacity_ratio > 1.0 + 1e-9:
+        design_status = "FAIL"
+        combined_clause = _combined_transverse_reinforcement_clause(
+            design_inputs.metadata.design_code,
+            torsion_results,
+        )
+        design_status_note = (
+            "Shared closed stirrup reinforcement does not satisfy the combined shear-and-torsion transverse reinforcement demand. "
+            f"{_format_aci_warning_reference(combined_clause)}. "
+            "This does not satisfy the implemented combined transverse reinforcement demand."
+        )
     summary_note = (
         "Capacity Ratio (Shear + Torsion) = "
         "(shear-only required transverse reinforcement + torsion-only required transverse reinforcement) / "
         "provided transverse reinforcement of the shared closed stirrup."
     )
+    if cross_section_limit_check_applied:
+        summary_note += (
+            " Solid rectangular sections are also checked using the combined shear-torsion section-stress limit "
+            f"from {cross_section_limit_clause}."
+        )
     return CombinedShearTorsionResults(
         active=True,
         torsion_ignored=False,
@@ -528,6 +580,14 @@ def _compose_combined_shear_torsion_results(
         summary_note=summary_note,
         required_spacing_cm=required_spacing_cm,
         spacing_limit_reason=spacing_limit_reason,
+        cross_section_limit_check_applied=cross_section_limit_check_applied,
+        cross_section_limit_lhs_mpa=cross_section_limit_lhs_mpa,
+        cross_section_limit_rhs_mpa=cross_section_limit_rhs_mpa,
+        cross_section_limit_ratio=cross_section_limit_ratio,
+        cross_section_limit_clause=cross_section_limit_clause,
+        shear_section_stress_mpa=shear_section_stress_mpa,
+        torsion_section_stress_mpa=torsion_section_stress_mpa,
+        design_status_note=design_status_note,
     )
 
 
@@ -574,6 +634,7 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
     if design_inputs.torsion.enabled and not torsion_results.can_neglect_torsion:
         resolved_shared_spacing_cm = _resolve_shared_stirrup_spacing_cm(
             design_inputs,
+            geometry_results,
             shear_results,
             torsion_results,
         )
@@ -611,6 +672,7 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
             )
     combined_shear_torsion_results = _compose_combined_shear_torsion_results(
         design_inputs,
+        geometry_results,
         shear_results,
         torsion_results,
     )
@@ -649,6 +711,7 @@ def calculate_full_design_results(design_inputs: BeamDesignInputSet) -> BeamDesi
         ),
         *validate_shear_warnings(design_inputs, shear_results),
         *validate_torsion_warnings(torsion_results),
+        *validate_combined_shear_torsion_warnings(combined_shear_torsion_results),
         *validate_deflection_warnings(deflection_results, consider_deflection=design_inputs.consider_deflection),
     ]
     warnings = [_formalize_general_warning(message, design_inputs.metadata.design_code) for message in warnings]
@@ -980,7 +1043,10 @@ def _calculate_overall_assessment(
     if shear_results.nominal_vs_required_kg > shear_results.vs_max_kg:
         strength_failures.append("Required shear reinforcement exceeds the permitted shear steel contribution.")
     if combined_shear_torsion_results.active and combined_shear_torsion_results.design_status == "FAIL":
-        strength_failures.append("Shared closed stirrup reinforcement does not satisfy the combined shear-and-torsion transverse reinforcement demand.")
+        strength_failures.append(
+            combined_shear_torsion_results.design_status_note
+            or "Shared closed stirrup reinforcement does not satisfy the combined shear-and-torsion transverse reinforcement demand."
+        )
     elif torsion_results.enabled and not torsion_results.can_neglect_torsion and torsion_results.status == "FAIL":
         strength_failures.append(torsion_results.pass_fail_summary)
     if strength_failures:
@@ -1088,8 +1154,8 @@ def _torsion_spacing_clause_reference(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.6.1",
         "ACI 318-11": "ACI 318-11 11.5.6.1",
-        "ACI 318-14": "ACI 318-14 25.7.1.2",
-        "ACI 318-19": "ACI 318-19 25.7.1.2",
+        "ACI 318-14": "ACI 318-14 9.7.6.3.3",
+        "ACI 318-19": "ACI 318-19 9.7.6.3.3",
     }
     return mapping.get(code_version, code_version)
 
@@ -1098,10 +1164,22 @@ def _torsion_cross_section_clause_reference(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.3.1",
         "ACI 318-11": "ACI 318-11 11.5.3.1",
-        "ACI 318-14": "ACI 318-14 22.7.7",
-        "ACI 318-19": "ACI 318-19 22.7.7",
+        "ACI 318-14": "ACI 318-14 22.7.7.1",
+        "ACI 318-19": "ACI 318-19 22.7.7.1",
     }
     return mapping.get(code_version, code_version)
+
+
+def _combined_transverse_reinforcement_clause(
+    design_code: DesignCode,
+    torsion_results: TorsionDesignResults,
+) -> str:
+    shear_clause = _shear_reinforcement_clause_reference(design_code)
+    torsion_clause = (
+        torsion_results.transverse_reinf_required_governing
+        or f"{torsion_results.code_version} torsion transverse reinforcement provisions"
+    )
+    return f"{shear_clause} together with {torsion_clause}"
 
 
 def _formalize_shear_note(message: str, design_code: DesignCode) -> str:
@@ -1189,12 +1267,12 @@ def flexural_phi_chart_points(design_code: DesignCode, ety: float) -> list[tuple
     if design_code == DesignCode.ACI318_99:
         return []
     if design_code == DesignCode.ACI318_11:
-        return [(0.0, 0.75), (0.002, 0.75), (0.005, 0.9), (0.006, 0.9)]
+        return [(0.0, 0.65), (0.002, 0.65), (0.005, 0.9), (0.006, 0.9)]
     if design_code == DesignCode.ACI318_14:
         transition_end = 0.005
-        return [(0.0, 0.75), (ety, 0.75), (transition_end, 0.9), (max(0.006, transition_end + 0.001), 0.9)]
+        return [(0.0, 0.65), (ety, 0.65), (transition_end, 0.9), (max(0.006, transition_end + 0.001), 0.9)]
     transition_end = ety + 0.003
-    return [(0.0, 0.75), (ety, 0.75), (transition_end, 0.9), (max(0.006, transition_end + 0.001), 0.9)]
+    return [(0.0, 0.65), (ety, 0.65), (transition_end, 0.9), (max(0.006, transition_end + 0.001), 0.9)]
 
 
 def _calculate_shear_phi(design_code: DesignCode) -> float:
@@ -1237,13 +1315,14 @@ def _auto_select_spacing_cm(required_spacing_cm: float, increment_cm: float = AU
 
 def _resolve_shared_stirrup_spacing_cm(
     design_inputs: BeamDesignInputSet,
+    geometry_results: BeamGeometryResults,
     shear_results: ShearDesignResults,
     torsion_results: TorsionDesignResults,
 ) -> float:
     required_spacing_cm, _ = _combined_required_spacing_limit_cm(
         shear_results,
         torsion_results,
-        _combined_required_transverse_mm2_per_mm(design_inputs, shear_results, torsion_results),
+        _combined_required_transverse_mm2_per_mm(design_inputs, geometry_results, shear_results, torsion_results),
     )
     if design_inputs.shear.spacing_mode == ShearSpacingMode.AUTO:
         return _auto_select_spacing_cm(required_spacing_cm)
@@ -1252,10 +1331,11 @@ def _resolve_shared_stirrup_spacing_cm(
 
 def _combined_required_transverse_mm2_per_mm(
     design_inputs: BeamDesignInputSet,
+    geometry_results: BeamGeometryResults,
     shear_results: ShearDesignResults,
     torsion_results: TorsionDesignResults,
 ) -> float:
-    d_mm = design_inputs.geometry.depth_cm * 10.0
+    d_mm = geometry_results.d_plus_cm * 10.0
     # Keep the shear component on the same mm2/mm basis as the torsion component for shared-stirrup interaction.
     shear_required_transverse_mm2_per_mm = _safe_divide(
         shear_results.nominal_vs_required_kg,
@@ -1285,6 +1365,59 @@ def _combined_required_spacing_limit_cm(
     if not valid_candidates:
         return (shear_results.required_spacing_cm, "No valid combined spacing limit")
     return min(valid_candidates, key=lambda item: item[0])
+
+
+def _evaluate_combined_shear_torsion_cross_section_limit(
+    design_inputs: BeamDesignInputSet,
+    geometry_results: BeamGeometryResults,
+    shear_results: ShearDesignResults,
+    torsion_results: TorsionDesignResults,
+) -> tuple[bool, float, float, float, float, float, str, bool]:
+    if design_inputs.metadata.design_code not in {
+        DesignCode.ACI318_11,
+        DesignCode.ACI318_14,
+        DesignCode.ACI318_19,
+    }:
+        return (False, 0.0, 0.0, 0.0, 0.0, 0.0, "", True)
+
+    width_cm = design_inputs.geometry.width_cm
+    d_cm = geometry_results.d_plus_cm
+    if width_cm <= 0.0 or d_cm <= 0.0:
+        return (False, 0.0, 0.0, 0.0, 0.0, 0.0, "", True)
+
+    # ACI 318-14/19 22.7.7.1 combines the solid-section shear stress from Vu
+    # with the torsional stress from Tu using an RSS stress limit. The current
+    # beam app scope is a solid rectangular section using the same d basis as shear.
+    shear_stress_mpa = ksc_to_mpa(_safe_divide(design_inputs.shear.factored_shear_kg, width_cm * d_cm))
+    vc_stress_mpa = ksc_to_mpa(_safe_divide(shear_results.vc_kg, width_cm * d_cm))
+    tu_nmm = kgf_m_to_n_mm(design_inputs.torsion.factored_torsion_kgfm)
+    torsion_stress_mpa = tu_nmm * torsion_results.ph_mm / (1.7 * (torsion_results.aoh_mm2**2))
+    lhs_mpa = math.hypot(shear_stress_mpa, torsion_stress_mpa)
+    rhs_mpa = 0.75 * (
+        vc_stress_mpa + (0.66 * math.sqrt(ksc_to_mpa(design_inputs.materials.concrete_strength_ksc)))
+    )
+    ratio = _safe_divide(lhs_mpa, rhs_mpa)
+    clause = _combined_shear_torsion_cross_section_clause(design_inputs.metadata.design_code)
+    return (
+        True,
+        shear_stress_mpa,
+        torsion_stress_mpa,
+        lhs_mpa,
+        rhs_mpa,
+        ratio,
+        clause,
+        lhs_mpa <= rhs_mpa + 1e-9,
+    )
+
+
+def _combined_shear_torsion_cross_section_clause(design_code: DesignCode) -> str:
+    if design_code == DesignCode.ACI318_11:
+        return "ACI 318-11 11.5.3.1"
+    if design_code == DesignCode.ACI318_14:
+        return "ACI 318-14 22.7.7.1"
+    if design_code == DesignCode.ACI318_19:
+        return "ACI 318-19 22.7.7.1"
+    return ""
 
 
 def _calculate_rho_required(fc_prime_ksc: float, fy_ksc: float, ru_kg_per_cm2: float) -> float:

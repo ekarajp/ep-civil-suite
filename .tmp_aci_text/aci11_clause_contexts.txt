@@ -1,0 +1,92 @@
+﻿=== 9.5 ===
+................................................................................................................... 126 9.5—Control of deflections.................................................................................................................................................. 126 CHAPTER 10—FLEXURE AND AXIAL LOADS............
+---
+.................................................................................................................. 319 19.5—Construction.............................................................................................................................................................. 321 CHAPTER 20—STRENGTH EVALUATION OF EXISTING S
+---
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effecti
+---
+
+=== 9.5.2 ===
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective
+---
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective
+---
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective
+---
+
+=== 9.5.2.3 ===
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective s
+---
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective s
+---
+8  fpy = specified yield strength of prestressing steel, MPa, Chapter 18  fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B  fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18  fs′ = stress in compression reinforcement under factored loads, MPa, Appendix A  fse = effective s
+---
+
+=== 9.5.2.5 ===
+anchorage applications, see D.3.6, Appendix D  λΔ = multiplier for additional deflection due to long-term effects, see 9.5.2.5, Chapter 9  μ = coefficient of friction, see 11.6.4.3, Chapters 11, 21  ξ = time-dependent factor for sustained load,  drift resulting from lateral and gravity loads, Chapter 10 see 9.5.2.5, Chapter 9 ρ = ratio of A
+---
+anchorage applications, see D.3.6, Appendix D  λΔ = multiplier for additional deflection due to long-term effects, see 9.5.2.5, Chapter 9  μ = coefficient of friction, see 11.6.4.3, Chapters 11, 21  ξ = time-dependent factor for sustained load,  drift resulting from lateral and gravity loads, Chapter 10 see 9.5.2.5, Chapter 9 ρ = ratio of A
+---
+anchorage applications, see D.3.6, Appendix D  λΔ = multiplier for additional deflection due to long-term effects, see 9.5.2.5, Chapter 9  μ = coefficient of friction, see 11.6.4.3, Chapters 11, 21  ξ = time-dependent factor for sustained load,  drift resulting from lateral and gravity loads, Chapter 10 see 9.5.2.5, Chapter 9 ρ = ratio of A
+---
+
+=== 10.5.1 ===
+in place and true to line. 7.10.5 — Ties Tie reinforcement for compression members shall conform to the following: / 7.10.5.1 — All nonprestressed bars shall be / enclosed by transverse ties, at least No. 10 in size for longitudinal bars No. 32 or smaller, and at least No. 13 in size for No. 36, No. 43, No. 57, and bundled longitudinal bars. D
+---
+hall be taken into account in determining spacing of lateral supports. 10.5 — Minimum reinforcement of flexural members 10.5.1 — At every section of a flexural member where tensile reinforcement is required by analysis, except as provided in 10.5.2, 10.5.3, and 10.5.4, As provided shall not be less than that given by 0.25 fc′ As min, = ------
+---
+ilure in such a case can be sudden. To prevent such a failure, a minimum amount of tensile reinforcement is required by 10.5.1 in both positive and negative moment regions. When concrete strength higher than about 35 MPa is used, the 1.4/fy value previously prescribed may not be sufficient. Equation (10-3) gives the same amount of reinforcement
+---
+
+=== 11.3 ===
+ded by concrete for nonprestressed members......................................................................... 164 11.3—Shear strength provided by concrete for prestressed members............................................................................... 166 11.4—Shear strength provided by shear reinforcement.........................
+---
+ove 10°C and in a moist condition for at least the first 7 days after placement, except when cured in accordance with 5.11.3. 5  5.11.2 — High-early-strength concrete shall be maintained above 10°C and in a moist condition for at least the first 3 days, except when cured in accordance with 5.11.3. much as 50 percent. Hence, equipment made of
+---
+be maintained above 10°C and in a moist condition for at least the first 3 days, except when cured in accordance with 5.11.3. much as 50 percent. Hence, equipment made of aluminum or aluminum alloys should not be used for pump lines, tremies, or chutes other than short chutes such as those used to convey concrete from a truck mixer. R5.10 — D
+---
+
+=== 11.4 ===
+by concrete for prestressed members............................................................................... 166 11.4—Shear strength provided by shear reinforcement...................................................................................................... 169 11.5—Design for torsion...........................................
+---
+r Av,min = minimum area of shear reinforcement within shaft to the edge of concrete, mm, Appendix D spacing s, mm2, see 11.4.6.3 and 11.4.6.4, ca1 = distance from the center of an anchor shaft Chapter 11 to the edge of concrete in one direction, mm. Ash = total cross-sectional area of transverse reinforcement (including crossties) within spa
+---
+nimum area of shear reinforcement within shaft to the edge of concrete, mm, Appendix D spacing s, mm2, see 11.4.6.3 and 11.4.6.4, ca1 = distance from the center of an anchor shaft Chapter 11 to the edge of concrete in one direction, mm. Ash = total cross-sectional area of transverse reinforcement (including crossties) within spacing s and pe
+---
+
+=== 11.4.5 ===
+Chapter 11  αv = ratio of flexural stiffness of shearhead arm to that of the surrounding composite slab section, see 11.11.4.5, Chapter 11  β = ratio of long to short dimensions: clear spans for two-way slabs, see 9.5.3.3 and 22.5.4; sides of column, concentrated load or reaction area, see 11.11.2.1; or sides of a footing, see 15.4.4.2, Chapter
+---
+Chapter 11  αv = ratio of flexural stiffness of shearhead arm to that of the surrounding composite slab section, see 11.11.4.5, Chapter 11  β = ratio of long to short dimensions: clear spans for two-way slabs, see 9.5.3.3 and 22.5.4; sides of column, concentrated load or reaction area, see 11.11.2.1; or sides of a footing, see 15.4.4.2, Chapter
+---
+Chapter 11  αv = ratio of flexural stiffness of shearhead arm to that of the surrounding composite slab section, see 11.11.4.5, Chapter 11  β = ratio of long to short dimensions: clear spans for two-way slabs, see 9.5.3.3 and 22.5.4; sides of column, concentrated load or reaction area, see 11.11.2.1; or sides of a footing, see 15.4.4.2, Chapter
+---
+
+=== 11.4.6.3 ===
+r Av,min = minimum area of shear reinforcement within shaft to the edge of concrete, mm, Appendix D spacing s, mm2, see 11.4.6.3 and 11.4.6.4, ca1 = distance from the center of an anchor shaft Chapter 11 to the edge of concrete in one direction, mm. Ash = total cross-sectional area of transverse reinforcement (including crossties) within spacing
+---
+orced or prestressed concrete beams and concrete joist construction having minimum web reinforcement in accordance with 11.4.6.3, 11.4.6.4, or 11.5.5.2. R11.1.2.1 — Based on the test results in References 11.7, 11.8, 11.9, 11.10, and 11.11, an increase in the minimum amount of transverse reinforcement is required for highstrength concrete. These
+---
+lement, creep, shrinkage, and temperature change, based on a realistic assessment of such effects occurring in service. 11.4.6.3 — Where shear reinforcement is required by 11.4.6.1 or for strength and where 11.5.1 allows torsion to be neglected, Av,min for prestressed (except as provided in 11.4.6.4) and nonprestressed members shall be computed b
+---
+
+=== 11.4.7.2 ===
+, shear reinforcement shall be provided to satisfy Eq. (11-1) and (11-2), where Vs shall be computed in accordance with 11.4.7.2 through 11.4.7.9. 11.4.7.2 — Where shear reinforcement perpendicular to axis of member is used, Avfytd Vs = -----------------s - (11-15) where Av is the area of shear reinforcement within spacing s. 11.4.7.3 — Where ci
+---
+be provided to satisfy Eq. (11-1) and (11-2), where Vs shall be computed in accordance with 11.4.7.2 through 11.4.7.9. 11.4.7.2 — Where shear reinforcement perpendicular to axis of member is used, Avfytd Vs = -----------------s - (11-15) where Av is the area of shear reinforcement within spacing s. 11.4.7.3 — Where circular ties, hoops, or spir
+---
+
+=== 11.5.3.1 ===
+n the prestressing steel due to prestressing and factored bending moments at the section under consideration, MPa, see R11.5.3.10, Chapter 11 εcu = maximum usable strain at extreme concrete compression fiber, Fig. R10.3.3 φK = stiffness reduction factor, see R10.10, Chapter 10 2.2 — Definitions The following terms are defined for general use in
+---
+this distance, the critical section for design shall be at the face of the support. 11.5.3 — Torsional moment strength 11.5.3.1 — The cross-sectional dimensions shall be such that: For solid sections V 2 b-----------wud + -------------------Tu ph 2 ≤ φb-----------Vwcd + 0.66 fc′ (11-18)   1.7A2oh 11  For hollow sections b---
+---
+irder. In such a case, a concentrated shear and torque are applied to the girder. R11.5.3 — Torsional moment strength R11.5.3.1 — The size of a cross section is limited for two reasons: first, to reduce unsightly cracking, and second, to prevent crushing of the surface concrete due to inclined compressive stresses due to shear and torsion. In Eq
+---
+
+=== 11.5.6.1 ===
+nsverse torsional reinforcement, and fy refers to longitudinal reinforcement. 11.5.6 — Spacing of torsion reinforcement 11.5.6.1 — The spacing of transverse torsion reinforcement shall not exceed the smaller of ph /8 or 300 mm. 11.5.6.2 — The longitudinal reinforcement required for torsion shall be distributed around the perimeter of the closed s
+---
+is reduction factor and results in a volumetric ratio of about 0.5 percent. R11.5.6 — Spacing of torsion reinforcement R11.5.6.1 — The spacing of the stirrups is limited to ensure the development of the ultimate torsional strength of the beam, to prevent excessive loss of torsional stiffness after cracking, and to control crack widths. For a squa
+---
+

@@ -504,7 +504,7 @@ def test_deflection_info_texts_follow_selected_project_code(monkeypatch) -> None
     limit_text = workspace_page._deflection_limit_info_text()
     service_text = workspace_page._deflection_service_load_info_text()
 
-    assert "ACI318-19 - Chapter 24.2.4" in long_term_text
+    assert "ACI318-19 - Clause 24.2.4" in long_term_text
     assert "L/240 (default)" in limit_text
     assert "ACI318-19 - Chapter 24 gives the serviceability framework for deflection checks in the selected code version." in limit_text
     assert "L/240: common general building limit where moderate deflection control is needed." in limit_text
@@ -516,6 +516,17 @@ def test_deflection_info_texts_follow_selected_project_code(monkeypatch) -> None
     assert "Strength design for Mu and Vu remains based on the user-entered factored actions." in service_text
     assert "Startup default in this app = 0.30." in service_text
     assert "This is not the same as SDL." in service_text
+
+
+def test_warning_reference_helpers_use_verified_torsion_clauses() -> None:
+    assert workspace_page._torsion_spacing_clause_reference_for_ui("ACI 318-14") == "ACI 318-14 9.7.6.3.3"
+    assert workspace_page._torsion_spacing_clause_reference_for_ui("ACI 318-19") == "ACI 318-19 9.7.6.3.3"
+    assert workspace_page._torsion_cross_section_clause_reference_for_ui("ACI 318-14") == "ACI 318-14 22.7.7.1"
+    assert workspace_page._torsion_cross_section_clause_reference_for_ui("ACI 318-19") == "ACI 318-19 22.7.7.1"
+    assert (
+        workspace_page._shear_spacing_clause_reference_for_ui(workspace_page.DesignCode.ACI318_19, True)
+        == "ACI 318-19 9.7.6.2 together with 9.7.6.3.3"
+    )
 
 
 def test_simple_beam_deflection_support_options_remain_single_value() -> None:
@@ -799,6 +810,43 @@ def test_shear_torsion_interaction_diagram_html_shows_shared_stirrup_rule() -> N
     assert "Shear&ndash;Torsion Interaction Diagram" in html
     assert "x + y &le; 1.00" in html
     assert "Demand point" in html
+
+
+def test_shear_torsion_interaction_diagram_html_appends_solid_section_limit_graph_when_available() -> None:
+    html = workspace_page._build_shear_torsion_interaction_diagram_html(
+        CombinedShearTorsionResults(
+            active=True,
+            torsion_ignored=False,
+            ignore_message="",
+            vu_kg=12000.0,
+            tu_kgfm=2000.0,
+            shear_required_transverse_mm2_per_mm=0.020,
+            torsion_required_transverse_mm2_per_mm=0.030,
+            combined_required_transverse_mm2_per_mm=0.050,
+            provided_transverse_mm2_per_mm=0.080,
+            governing_case="Combined section limit",
+            capacity_ratio=0.625,
+            design_status="FAIL",
+            stirrup_diameter_mm=16,
+            stirrup_legs=4,
+            stirrup_spacing_cm=5.0,
+            summary_note="",
+            cross_section_limit_check_applied=True,
+            cross_section_limit_lhs_mpa=3.187,
+            cross_section_limit_rhs_mpa=1.000,
+            cross_section_limit_ratio=3.187,
+            cross_section_limit_clause="ACI 318-19 22.7.7.1",
+            shear_section_stress_mpa=0.900,
+            torsion_section_stress_mpa=3.057,
+            design_status_note="Combined shear and torsion exceed the implemented solid-section stress limit.",
+        ),
+        LIGHT_THEME,
+    )
+
+    assert "Solid Section Combined Section-Limit Diagram" in html
+    assert "(x<sup>2</sup> + y<sup>2</sup>)<sup>1/2</sup> &le; 1.00" in html
+    assert "Shear stress / limit stress" in html
+    assert "Torsion stress / limit stress" in html
 
 
 def test_torsion_warning_summary_prefers_specific_warning_text() -> None:

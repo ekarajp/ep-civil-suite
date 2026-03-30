@@ -9,9 +9,22 @@ from core.theme import apply_theme
 from core.utils import format_number, format_ratio
 
 from .formulas import calculate_full_design_results
-from .report_builder import build_full_report_print_css, build_full_report_sections
-from .visualization import beam_section_specs, build_beam_section_svg, build_section_rebar_details, shared_drawing_transform
-from .workspace_page import LAST_RENDERED_PAGE_KEY, build_inputs_from_state, initialize_session_state, load_default_inputs
+from .report_builder import build_full_report_overview_data, build_full_report_print_css, build_full_report_sections
+from .visualization import (
+    PhiFlexureChartState,
+    beam_section_specs,
+    build_beam_section_svg,
+    build_flexural_phi_chart_svg,
+    build_section_rebar_details,
+    shared_drawing_transform,
+)
+from .workspace_page import (
+    LAST_RENDERED_PAGE_KEY,
+    _build_shear_torsion_interaction_diagram_html,
+    build_inputs_from_state,
+    initialize_session_state,
+    load_default_inputs,
+)
 
 
 def main() -> None:
@@ -32,7 +45,8 @@ def main() -> None:
             return
 
     sections = build_full_report_sections(inputs, results)
-    report_html = render_full_report_layout(inputs, results, sections, palette)
+    overview = build_full_report_overview_data(inputs, results)
+    report_html = render_full_report_layout(inputs, results, overview, sections, palette)
 
     st.markdown("<div class='screen-only report-toolbar'>", unsafe_allow_html=True)
     toolbar_left, toolbar_right = st.columns([0.9, 2.1], gap="medium")
@@ -40,7 +54,7 @@ def main() -> None:
         render_print_button("full-report-root", "Singly Reinforced Beam Analysis - Full Report", palette)
     with toolbar_right:
         st.markdown("<div class='hero-title'>Singly Reinforced Beam Analysis</div>", unsafe_allow_html=True)
-        st.markdown("<div class='hero-subtitle'>Calculation Report (Full)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='hero-subtitle'>Full Report</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(report_html, unsafe_allow_html=True)
@@ -128,16 +142,16 @@ def render_print_button(root_id: str, window_title: str, palette) -> None:
     )
 
 
-def render_full_report_layout(inputs, results, sections, palette) -> str:
+def render_full_report_layout(inputs, results, overview, sections, palette) -> str:
     page_html_parts: list[str] = []
     grouped_sections = _group_sections_for_pages(sections)
     total_pages = len(grouped_sections)
 
     for page_number, page_sections in enumerate(grouped_sections, start=1):
         if page_number == 1:
-            content = _render_cover_page(inputs, results, palette, page_sections, page_number, total_pages)
+            content = _render_cover_page(inputs, results, overview, palette, page_number, total_pages)
         else:
-            content = _render_detail_page(page_sections, page_number, total_pages)
+            content = _render_detail_page(inputs, results, page_sections, palette, page_number, total_pages)
         page_html_parts.append(content)
 
     return _normalize_html(
@@ -150,17 +164,17 @@ def render_full_report_layout(inputs, results, sections, palette) -> str:
 
 
 def _group_sections_for_pages(sections) -> list[list]:
-    if not sections:
-        return [[]]
-    groups: list[list] = [sections[:3]]
+    groups: list[list] = [[]]
     remaining = sections[3:]
+    if sections:
+        remaining = sections
     while remaining:
         groups.append(remaining[:4])
         remaining = remaining[4:]
     return groups
 
 
-def _render_cover_page(inputs, results, palette, sections, page_number: int, total_pages: int) -> str:
+def _render_cover_page(inputs, results, overview, palette, page_number: int, total_pages: int) -> str:
     figure_specs = beam_section_specs(inputs)
     drawing_transform = shared_drawing_transform(inputs)
     figure_class = "full-report-figures dual" if len(figure_specs) > 1 else "full-report-figures"
@@ -168,7 +182,22 @@ def _render_cover_page(inputs, results, palette, sections, page_number: int, tot
         _render_figure_block(inputs, results, palette, title, moment_case, drawing_transform, dual=len(figure_specs) > 1)
         for title, moment_case in figure_specs
     )
-    section_html = "".join(_render_full_section(section) for section in sections)
+    check_html = "".join(
+        _normalize_html(
+            dedent(
+            f"""
+            <div class="full-report-summary-card">
+              <div class="label">{section.title}</div>
+              <div class="value" style="font-size:8.4px;line-height:1.45;font-weight:600;">{section.body}</div>
+              {f"<ul class='full-report-bullets'>{''.join(f'<li>{item}</li>' for item in section.bullets)}</ul>" if section.bullets else ""}
+            </div>
+            """
+            )
+        )
+        for section in overview.check_sections
+    )
+    reinforcement_html = "".join(f"<li>{item}</li>" for item in overview.reinforcement_lines)
+    note_html = "".join(f"<li>{item}</li>" for item in overview.governing_notes)
     return _normalize_html(
         dedent(
         f"""
@@ -176,13 +205,9 @@ def _render_cover_page(inputs, results, palette, sections, page_number: int, tot
           <div class="full-report-hero">
             <div>
               <h1 class="full-report-title">Singly Reinforced Beam Analysis</h1>
-              <div class="full-report-subtitle">Calculation Report (Full)</div>
+              <div class="full-report-subtitle">Full Report</div>
               <div class="full-report-lead">
-                This report presents the reinforced concrete beam design check for the selected member using the
-                current application inputs. The calculations are arranged in the conventional order used in
-                engineering submissions: input definition, material properties, section geometry, flexural design,
-                shear design, and final review remarks. Values shown below are the governing numerical substitutions
-                used by the program for this design run.
+                {overview.member_summary}
               </div>
               <div class="full-report-meta">
                 {_meta_item("Project Name", inputs.metadata.project_name or "-")}
@@ -199,21 +224,30 @@ def _render_cover_page(inputs, results, palette, sections, page_number: int, tot
               {figures_html}
             </div>
           </div>
-          <div class="full-report-summary">
-            {_summary_card("As req.", format_number(results.positive_bending.as_required_cm2), "cm2")}
-            {_summary_card("phiMn", format_number(results.positive_bending.phi_mn_kgm), "kg-m")}
-            {_summary_card("PhiVn", format_number(results.shear.phi_vn_kg), "kg")}
-            {_summary_card("Ratios", f"M {format_ratio(results.positive_bending.ratio)} / V {format_ratio(results.shear.capacity_ratio)}", "-")}
+          <div class="full-report-section">
+            <div class="full-report-section-title">Design Actions</div>
+            <div class="full-report-section-intro">{overview.design_actions}</div>
           </div>
-          {section_html}
+          <div class="full-report-summary">
+            {check_html}
+          </div>
+          <div class="full-report-section">
+            <div class="full-report-section-title">Reinforcement Summary</div>
+            <ul class="full-report-bullets">{reinforcement_html}</ul>
+          </div>
+          {f"<div class='full-report-section'><div class='full-report-section-title'>Governing Notes</div><ul class='full-report-bullets'>{note_html}</ul></div>" if overview.governing_notes else ""}
+          <div class="full-report-section">
+            <div class="full-report-section-title">Conclusion</div>
+            <div class="full-report-section-intro">{overview.conclusion}</div>
+          </div>
         </div>
         """
         )
     )
 
 
-def _render_detail_page(sections, page_number: int, total_pages: int) -> str:
-    section_html = "".join(_render_full_section(section) for section in sections)
+def _render_detail_page(inputs, results, sections, palette, page_number: int, total_pages: int) -> str:
+    section_html = "".join(_render_full_section(section, inputs, results, palette) for section in sections)
     return _normalize_html(
         dedent(
         f"""
@@ -226,9 +260,16 @@ def _render_detail_page(sections, page_number: int, total_pages: int) -> str:
 
 
 def _render_figure_block(inputs, results, palette, title: str, moment_case: str, drawing_transform, *, dual: bool) -> str:
-    details = build_section_rebar_details(inputs, moment_case, results.shear.provided_spacing_cm)
-    top_lines = "<br>".join(details.top_lines)
-    bottom_lines = "<br>".join(details.bottom_lines)
+    stirrup_spacing_cm = results.combined_shear_torsion.stirrup_spacing_cm if results.combined_shear_torsion.active else results.shear.provided_spacing_cm
+    details = build_section_rebar_details(inputs, moment_case, stirrup_spacing_cm)
+    rebar_parts: list[str] = []
+    if _has_rebar_lines(details.top_lines):
+        rebar_parts.append(f"<strong>Top:</strong> {'<br>'.join(details.top_lines)}")
+    if _has_rebar_lines(details.bottom_lines):
+        rebar_parts.append(f"<strong>Bottom:</strong> {'<br>'.join(details.bottom_lines)}")
+    rebar_parts.append(f"<strong>Stirrup:</strong> {details.stirrup_line}")
+    if details.torsion_side_lines:
+        rebar_parts.append(f"<strong>Torsion Side:</strong> {'<br>'.join(details.torsion_side_lines)}")
     dual_class = " dual" if dual else ""
     return _normalize_html(
         dedent(
@@ -236,16 +277,14 @@ def _render_figure_block(inputs, results, palette, title: str, moment_case: str,
         <div class='full-report-figure-block{dual_class}'>
           <div class='full-report-figure-title'>{title} Section</div>
           <div class='full-report-figure'>{build_beam_section_svg(inputs, palette, moment_case, transform=drawing_transform)}</div>
-          <div class='full-report-rebar'><strong>Top:</strong> {top_lines}<br>
-          <strong>Bottom:</strong> {bottom_lines}<br>
-          <strong>Stirrup:</strong> {details.stirrup_line}</div>
+          <div class='full-report-rebar'>{"<br>".join(rebar_parts)}</div>
         </div>
         """
         )
     )
 
 
-def _render_full_section(section) -> str:
+def _render_full_section(section, inputs, results, palette) -> str:
     intro_text = _section_intro_text(section.title)
     if section.title == "Notation":
         return _render_notation_section(section, intro_text)
@@ -254,12 +293,14 @@ def _render_full_section(section) -> str:
         for index, row in enumerate(section.rows, start=1)
     )
     layout_class = _section_layout_class(section.title)
+    visuals_html = _render_section_visuals(section.title, inputs, results, palette)
     return _normalize_html(
         dedent(
         f"""
         <div class="full-report-section">
           <div class="full-report-section-title">{section.title}</div>
           <div class="full-report-section-intro">{intro_text}</div>
+          {f"<div class='full-report-visuals'>{visuals_html}</div>" if visuals_html else ""}
           <div class="full-report-steps {layout_class}">
             {rows_html}
           </div>
@@ -297,6 +338,114 @@ def _render_notation_section(section, intro_text: str) -> str:
         """
         )
     )
+
+
+def _render_section_visuals(section_title: str, inputs, results, palette) -> str:
+    if section_title == "Positive Moment Design":
+        return build_flexural_phi_chart_svg(
+            palette,
+            PhiFlexureChartState(
+                title="Positive Moment Flexural φ",
+                design_code=inputs.metadata.design_code,
+                et=results.positive_bending.et,
+                ety=results.positive_bending.ety,
+                phi=results.positive_bending.phi,
+            ),
+        )
+    if section_title == "Negative Moment Design" and results.negative_bending is not None:
+        return build_flexural_phi_chart_svg(
+            palette,
+            PhiFlexureChartState(
+                title="Negative Moment Flexural φ",
+                design_code=inputs.metadata.design_code,
+                et=results.negative_bending.et,
+                ety=results.negative_bending.ety,
+                phi=results.negative_bending.phi,
+            ),
+        )
+    if section_title == "Torsion Design" and results.combined_shear_torsion.active:
+        return _build_shear_torsion_interaction_diagram_html(results.combined_shear_torsion, palette, results.torsion)
+    if section_title == "Deflection Check" and results.deflection.status != "Not considered":
+        return _build_report_deflection_diagram_html(results, palette)
+    return ""
+
+
+def _has_rebar_lines(lines: list[str]) -> bool:
+    return any(line.strip() and line.strip() != "-" for line in lines)
+
+
+def _build_report_deflection_diagram_html(results, palette) -> str:
+    support_condition = results.deflection.support_condition
+    width = 360.0
+    height = 148.0
+    beam_y = 58.0
+    left_x = 34.0
+    right_x = 326.0
+    span_width = right_x - left_x
+    calculated_deflection_cm = float(results.deflection.total_service_deflection_cm)
+    allowable_deflection_cm = float(results.deflection.allowable_deflection_cm)
+    base_amplitude = 16.0
+    if allowable_deflection_cm > 0:
+        governing = max(calculated_deflection_cm, allowable_deflection_cm, 1e-9)
+        base_amplitude = 10.0 + (22.0 * (calculated_deflection_cm / governing))
+
+    if support_condition == "Continuous 2 spans":
+        support_positions = [left_x, left_x + (span_width / 2.0), right_x]
+        highlight_positions = [left_x + (span_width * 0.25), left_x + (span_width * 0.75)]
+        span_amplitudes = [base_amplitude * 0.88, base_amplitude * 0.88]
+        note = "Continuous 2 spans: representative span locations govern the displayed check."
+    elif support_condition == "Continuous 3 or more spans":
+        support_positions = [left_x, left_x + (span_width / 3.0), left_x + (2.0 * span_width / 3.0), right_x]
+        highlight_positions = [left_x + (span_width / 2.0)]
+        span_amplitudes = [base_amplitude * 0.72, base_amplitude, base_amplitude * 0.72]
+        note = "Continuous multi-span case: the interior representative span governs the displayed check."
+    else:
+        support_positions = [left_x, right_x]
+        highlight_positions = [left_x + (span_width / 2.0)]
+        span_amplitudes = [base_amplitude]
+        note = "Simple beam: maximum deflection is checked at midspan."
+
+    support_markup = "".join(
+        f"<polygon points='{support_x - 9:.2f},{beam_y + 21:.2f} {support_x + 9:.2f},{beam_y + 21:.2f} {support_x:.2f},{beam_y + 0.5:.2f}' fill='{palette.text}' stroke='{palette.text}' stroke-width='1.6' />"
+        for support_x in support_positions
+    )
+    span_labels = "".join(
+        f"<text x='{(support_positions[index] + support_positions[index + 1]) / 2.0:.2f}' y='{beam_y - 14:.2f}' text-anchor='middle' font-size='9.5' fill='{palette.muted_text}'>Span {index + 1}</text>"
+        for index in range(len(support_positions) - 1)
+    )
+    deflected_shape_segments = [f"M {support_positions[0]:.2f} {beam_y:.2f}"]
+    for index, amplitude in enumerate(span_amplitudes):
+        start_x = support_positions[index]
+        end_x = support_positions[index + 1]
+        mid_x = (start_x + end_x) / 2.0
+        deflected_shape_segments.append(f"Q {mid_x:.2f} {beam_y + amplitude:.2f}, {end_x:.2f} {beam_y:.2f}")
+    deflected_shape_path = " ".join(deflected_shape_segments)
+    highlight_markup: list[str] = []
+    for index, highlight_x in enumerate(highlight_positions):
+        amplitude = span_amplitudes[min(index, len(span_amplitudes) - 1)]
+        highlight_y = beam_y + (amplitude / 2.0)
+        highlight_markup.append(
+            f"<line x1='{highlight_x:.2f}' y1='{beam_y - 18:.2f}' x2='{highlight_x:.2f}' y2='{highlight_y - 7:.2f}' stroke='{palette.fail}' stroke-width='1.2' stroke-dasharray='4 3' />"
+            f"<circle cx='{highlight_x:.2f}' cy='{highlight_y:.2f}' r='6.2' fill='none' stroke='{palette.fail}' stroke-width='2' />"
+            f"<circle cx='{highlight_x:.2f}' cy='{highlight_y:.2f}' r='2.8' fill='{palette.fail}' />"
+            f"<text x='{highlight_x + 8:.2f}' y='{highlight_y - 7:.2f}' font-size='9.2' font-weight='700' fill='{palette.fail}'>&#916;max = {format_number(calculated_deflection_cm)} cm</text>"
+        )
+    return dedent(
+        f"""
+        <div class="metric-card" style="margin-top:0.2rem">
+          <div class="section-label">Deflection Reference Diagram</div>
+          <svg width="100%" viewBox="0 0 {width:.0f} {height:.0f}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Deflection reference diagram" style="display:block;max-width:{width:.0f}px;margin:0 auto;height:auto;">
+            <rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" rx="14" fill="{palette.surface_alt}" />
+            <line x1="{left_x:.2f}" y1="{beam_y:.2f}" x2="{right_x:.2f}" y2="{beam_y:.2f}" stroke="{palette.text}" stroke-width="3.4" stroke-linecap="round" />
+            <path d="{deflected_shape_path}" fill="none" stroke="#0b5cab" stroke-width="2.4" stroke-dasharray="6 4" />
+            {support_markup}
+            {span_labels}
+            {''.join(highlight_markup)}
+          </svg>
+          <div class="metric-note">{note} Total service deflection = {format_number(calculated_deflection_cm)} cm; allowable = {format_number(allowable_deflection_cm)} cm.</div>
+        </div>
+        """
+    ).strip()
 
 
 def _summary_card(label: str, value: str, unit: str) -> str:
@@ -545,6 +694,14 @@ def _clean_report_html(value: str) -> str:
     return (
         value.replace("dâ€²", "d&#8242;")
         .replace("Ã—", "&times;")
+        .replace("Ï†", "&phi;")
+        .replace("Φ", "&phi;")
+        .replace("phiMn", "&phi;M<sub>n</sub>")
+        .replace("phiVn", "&phi;V<sub>n</sub>")
+        .replace("phiVc", "&phi;V<sub>c</sub>")
+        .replace("phiVs", "&phi;V<sub>s</sub>")
+        .replace("PhiMn", "&phi;M<sub>n</sub>")
+        .replace("PhiVn", "&phi;V<sub>n</sub>")
         .replace(" x ", " &times; ")
     )
 

@@ -236,10 +236,9 @@ def calculate_deflection_design(
         design_input.width_cm,
         design_input.midspan_section.effective_depth_cm,
     )
-    long_term_multiplier = max(
-        design_input.long_term_factor_x / (1.0 + (50.0 * compression_ratio)),
-        1.0,
-    )
+    # ACI 318-19 24.2.4.1.1 gives lambda_delta = xi / (1 + 50 rho').
+    # The uploaded source text does not provide a lower-bound clamp at 1.0.
+    long_term_multiplier = design_input.long_term_factor_x / (1.0 + (50.0 * compression_ratio))
     additional_long_term_deflection_cm = governing_eval.additional_long_term_deflection_cm
     immediate_live_deflection_cm = governing_eval.immediate_live_deflection_cm
     total_service_deflection_cm = governing_eval.total_service_deflection_cm
@@ -537,10 +536,9 @@ def _evaluate_deflection_method(
         design_input.width_cm,
         design_input.midspan_section.effective_depth_cm,
     )
-    long_term_multiplier = max(
-        design_input.long_term_factor_x / (1.0 + (50.0 * compression_ratio)),
-        1.0,
-    )
+    # ACI 318-19 24.2.4.1.1 gives lambda_delta = xi / (1 + 50 rho').
+    # The uploaded source text does not provide a lower-bound clamp at 1.0.
+    long_term_multiplier = design_input.long_term_factor_x / (1.0 + (50.0 * compression_ratio))
     additional_long_term_deflection_cm = sustained_case.deflection_cm * long_term_multiplier
     immediate_live_deflection_cm = max(total_case.deflection_cm - sustained_case.deflection_cm, 0.0)
     total_service_deflection_cm = immediate_live_deflection_cm + additional_long_term_deflection_cm

@@ -463,6 +463,14 @@ class CombinedShearTorsionResults:
     summary_note: str = ""
     required_spacing_cm: float = 0.0
     spacing_limit_reason: str = ""
+    cross_section_limit_check_applied: bool = False
+    cross_section_limit_lhs_mpa: float = 0.0
+    cross_section_limit_rhs_mpa: float = 0.0
+    cross_section_limit_ratio: float = 0.0
+    cross_section_limit_clause: str = ""
+    shear_section_stress_mpa: float = 0.0
+    torsion_section_stress_mpa: float = 0.0
+    design_status_note: str = ""
 
 
 @dataclass(slots=True)

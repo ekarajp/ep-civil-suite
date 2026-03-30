@@ -6,7 +6,7 @@ import streamlit.components.v1 as components
 from core.theme import apply_theme
 
 from .formulas import calculate_full_design_results
-from .report_builder import build_print_report_sections, build_report_print_css
+from .report_builder import build_report_print_css, build_summary_table_sections
 from .visualization import beam_section_specs, build_beam_section_svg, build_section_rebar_details, shared_drawing_transform
 from .workspace_page import LAST_RENDERED_PAGE_KEY, build_inputs_from_state, initialize_session_state, load_default_inputs
 
@@ -28,9 +28,8 @@ def main() -> None:
             st.info("Return to the workspace page and correct the invalid input combination before opening the report.")
             return
 
-    print_sections = build_print_report_sections(inputs, results)
-
-    report_html = render_print_layout(inputs, results, print_sections, palette)
+    sections = build_summary_table_sections(inputs, results)
+    report_html = render_print_layout(inputs, results, sections, palette)
 
     st.markdown("<div class='screen-only report-toolbar'>", unsafe_allow_html=True)
     toolbar_left, toolbar_right = st.columns([0.9, 2.1], gap="medium")
@@ -38,7 +37,7 @@ def main() -> None:
         render_print_button(palette)
     with toolbar_right:
         st.markdown("<div class='hero-title'>Singly Reinforced Beam Analysis</div>", unsafe_allow_html=True)
-        st.markdown("<div class='hero-subtitle'>Calculation Report (Summery)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='hero-subtitle'>Summary Report</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(report_html, unsafe_allow_html=True)
@@ -136,26 +135,36 @@ def render_print_layout(inputs, results, sections, palette) -> str:
         for title, moment_case in drawing_specs
     )
     drawing_stack_class = "print-drawing-stack dual" if len(drawing_specs) > 1 else "print-drawing-stack single"
-    header_class = "print-header dual-layout" if len(drawing_specs) > 1 else "print-header single-layout"
-    section_html = "".join(_render_print_section(section.title, section.rows) for section in sections)
+    section_html = "".join(_render_print_table_section(section) for section in sections)
+    header_meta_html = "".join(
+        f"<div class='summary-fact'><strong>{label}:</strong> {value}</div>"
+        for label, value in [
+            ("Project Name", inputs.metadata.project_name or "-"),
+            ("Project Number", inputs.metadata.project_number or "-"),
+            ("Engineer", inputs.metadata.engineer or "-"),
+            ("Date", inputs.metadata.design_date or "-"),
+            ("Tag", inputs.metadata.tag or "-"),
+        ]
+    )
+    project_line = inputs.metadata.project_name or inputs.metadata.tag or "Singly Reinforced Beam"
+    meta_html = "".join(
+        f"<span>{item}</span>"
+        for item in [
+            f"Beam Type: {inputs.beam_type.value}",
+            f"Code: {inputs.metadata.design_code.value}",
+            f"Overall Status: {results.overall_status}",
+        ]
+    )
     return f"""
     <div id="print-report-root">
-      <div class="print-sheet">
-      <div class="{header_class}">
+      <div class="summary-sheet">
+      <div class="print-header {'dual-layout' if len(drawing_specs) > 1 else 'single-layout'}">
         <div>
-          <h1>Singly Reinforced Beam Analysis</h1>
-          <div class="print-chip-row">
-            <span class="print-chip">Project Name: {inputs.metadata.project_name or "-"}</span>
-            <span class="print-chip">Project Number: {inputs.metadata.project_number or "-"}</span>
-            <span class="print-chip">Tag: {inputs.metadata.tag or "-"}</span>
-            <span class="print-chip">Engineer: {inputs.metadata.engineer or "-"}</span>
-            <span class="print-chip">Date: {inputs.metadata.design_date or "-"}</span>
-            <span class="print-chip">Code: {inputs.metadata.design_code.value}</span>
-            <span class="print-chip">Beam Type: {inputs.beam_type.value}</span>
-            <span class="print-chip">Status: {results.overall_status}</span>
-            <span class="print-chip">Warnings: {len(results.warnings)}</span>
-            <span class="print-chip">Review flags: {len(results.review_flags)}</span>
-          </div>
+          <h1 class="summary-title">Beam Design Summary</h1>
+          <div class="summary-subtitle">{project_line}</div>
+          <p class="summary-lead">One-page summary of the governing beam design results, key provided reinforcement, and current design status.</p>
+          <div class="summary-fact-grid">{header_meta_html}</div>
+          <div class="print-meta">{meta_html}</div>
         </div>
         <div class="{drawing_stack_class}">{drawings_html}</div>
       </div>
@@ -165,6 +174,38 @@ def render_print_layout(inputs, results, sections, palette) -> str:
       </div>
     </div>
     """
+
+
+def _render_print_table_section(section) -> str:
+    table_rows = "".join(_render_print_table_row(row) for row in section.rows)
+    return (
+        "<div class='print-block'>"
+        f"<div class='print-section-title'>{section.title}</div>"
+        "<table class='print-table'>"
+        "<thead><tr><th>Item</th><th>Key Value</th><th>Result</th><th>Status</th></tr></thead>"
+        f"<tbody>{table_rows}</tbody>"
+        "</table>"
+        "</div>"
+    )
+
+
+def _render_print_table_row(row) -> str:
+    detail = row.substitution if row.substitution and row.substitution != "-" else (row.equation if row.equation != "-" else "")
+    result = _compact_primary_value(row)
+    status_parts = [part for part in [row.status, row.note] if part and part != "-"]
+    status_text = " | ".join(status_parts) if status_parts else "-"
+    if len(detail) > 42:
+        detail = detail[:39].rstrip() + "..."
+    if len(status_text) > 32:
+        status_text = status_text[:29].rstrip() + "..."
+    return (
+        "<tr>"
+        f"<td>{row.variable}</td>"
+        f"<td>{detail or '-'}</td>"
+        f"<td>{result}</td>"
+        f"<td>{status_text}</td>"
+        "</tr>"
+    )
 
 
 def _render_print_drawing_block(inputs, results, palette, title: str, moment_case: str, drawing_transform) -> str:

@@ -2,6 +2,9 @@ import pytest
 
 from apps.singly_beam.formulas import (
     _auto_select_spacing_cm,
+    _combined_shear_torsion_cross_section_clause,
+    _torsion_cross_section_clause_reference,
+    _torsion_spacing_clause_reference,
     calculate_beam_geometry,
     calculate_full_design_results,
     calculate_material_properties,
@@ -9,7 +12,9 @@ from apps.singly_beam.formulas import (
     calculate_positive_bending_design,
     calculate_reinforcement_spacing,
     calculate_shear_design,
+    flexural_phi_chart_points,
 )
+from apps.singly_beam.report_builder import build_report_sections
 from apps.singly_beam.models import (
     BeamDesignInputSet,
     BeamType,
@@ -26,6 +31,7 @@ from apps.singly_beam.models import (
 )
 from design.deflection import DeflectionCodeVersion, DeflectionMemberType, DeflectionSupportCondition
 from design.torsion import TorsionDemandType, TorsionDesignCode, TorsionDesignInput
+from engines.common import DesignCode
 
 
 def test_rebar_group_rejects_incomplete_definition() -> None:
@@ -76,6 +82,38 @@ def test_beam_geometry_matches_standalone_defaults() -> None:
     assert results.positive_tension_centroid_from_bottom_d_cm == pytest.approx(5.5)
     assert results.d_plus_cm == pytest.approx(34.5)
     assert results.d_minus_cm is None
+
+
+def test_beam_geometry_includes_third_tension_layer_in_effective_depth() -> None:
+    inputs = BeamDesignInputSet(
+        positive_bending=PositiveBendingInput(
+            tension_reinforcement=ReinforcementArrangementInput(
+                layer_1=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=20, count=2),
+                    group_b=RebarGroupInput(),
+                ),
+                layer_2=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=20, count=2),
+                    group_b=RebarGroupInput(),
+                ),
+                layer_3=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=20, count=2),
+                    group_b=RebarGroupInput(),
+                ),
+            ),
+        )
+    )
+
+    results = calculate_beam_geometry(
+        inputs.geometry,
+        inputs.positive_bending,
+        inputs.negative_bending,
+        inputs.shear,
+        include_negative=inputs.has_negative_design,
+    )
+
+    assert results.positive_tension_centroid_from_bottom_d_cm == pytest.approx(10.4)
+    assert results.d_plus_cm == pytest.approx(29.6)
 
 
 def test_spacing_results_match_default_behavior() -> None:
@@ -332,8 +370,64 @@ def test_combined_shear_torsion_uses_nonzero_shear_interaction_component() -> No
 
     results = calculate_full_design_results(inputs)
 
-    assert results.combined_shear_torsion.shear_required_transverse_mm2_per_mm == pytest.approx(0.10429860706608919)
-    assert results.combined_shear_torsion.capacity_ratio == pytest.approx(1.2390049351846555)
+    expected_shear_component = (
+        results.shear.nominal_vs_required_kg
+        / (inputs.materials.shear_steel_yield_ksc * results.beam_geometry.d_plus_cm * 10.0)
+    ) * 100.0
+
+    assert results.combined_shear_torsion.shear_required_transverse_mm2_per_mm == pytest.approx(expected_shear_component)
+    assert results.combined_shear_torsion.shear_required_transverse_mm2_per_mm > 0.10429860706608919
+    assert results.combined_shear_torsion.capacity_ratio == pytest.approx(
+        results.combined_shear_torsion.combined_required_transverse_mm2_per_mm
+        / results.combined_shear_torsion.provided_transverse_mm2_per_mm
+    )
+
+
+def test_combined_shear_torsion_section_limit_can_govern_before_shared_stirrup_ratio() -> None:
+    inputs = BeamDesignInputSet(
+        shear=ShearDesignInput(
+            factored_shear_kg=12000.0,
+            stirrup_diameter_mm=16,
+            legs_per_plane=4,
+            spacing_mode=ShearSpacingMode.MANUAL,
+            provided_spacing_cm=5.0,
+        ),
+        torsion=TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=2000.0,
+            design_code=TorsionDesignCode.ACI318_19,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_steel_cm2=12.0,
+            provided_longitudinal_bar_diameter_mm=20,
+            provided_longitudinal_bar_count=8,
+            provided_longitudinal_bar_fy_ksc=4000.0,
+        ),
+    )
+
+    results = calculate_full_design_results(inputs)
+    combined = results.combined_shear_torsion
+
+    assert combined.active is True
+    assert combined.capacity_ratio < 1.0
+    assert combined.cross_section_limit_check_applied is True
+    assert combined.cross_section_limit_ratio > 1.0
+    assert combined.design_status == "FAIL"
+    assert "section-strength check" in combined.design_status_note
+
+
+def test_flexural_phi_chart_uses_aci_minimum_phi_floor() -> None:
+    assert flexural_phi_chart_points(BeamDesignInputSet().metadata.design_code, 0.002)[0][1] == pytest.approx(0.65)
+
+
+def test_report_builder_uses_strain_compatibility_equation_for_et() -> None:
+    inputs = BeamDesignInputSet()
+    results = calculate_full_design_results(inputs)
+    sections = build_report_sections(inputs, results)
+    positive_section = next(section for section in sections if section.title == "Positive Moment Design")
+    et_row = next(row for row in positive_section.rows if row.variable == "et")
+
+    assert et_row.equation == "ecu * (dt - c) / c"
+    assert " - " in et_row.substitution
 
 
 def test_auto_spacing_is_not_reduced_below_5_cm() -> None:
@@ -449,3 +543,11 @@ def test_material_property_manual_overrides_apply_independently() -> None:
     assert results.ec_mode == MaterialPropertyMode.MANUAL
     assert results.es_mode == MaterialPropertyMode.DEFAULT
     assert results.fr_mode == MaterialPropertyMode.MANUAL
+
+
+def test_formula_warning_clause_helpers_use_verified_references() -> None:
+    assert _torsion_spacing_clause_reference("ACI 318-14") == "ACI 318-14 9.7.6.3.3"
+    assert _torsion_spacing_clause_reference("ACI 318-19") == "ACI 318-19 9.7.6.3.3"
+    assert _torsion_cross_section_clause_reference("ACI 318-14") == "ACI 318-14 22.7.7.1"
+    assert _torsion_cross_section_clause_reference("ACI 318-19") == "ACI 318-19 22.7.7.1"
+    assert _combined_shear_torsion_cross_section_clause(DesignCode.ACI318_11) == "ACI 318-11 11.5.3.1"

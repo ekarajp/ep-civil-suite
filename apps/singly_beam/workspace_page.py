@@ -541,11 +541,17 @@ def _render_torsion_section(preview_results) -> None:
     if combined.active:
         st.markdown("<div class='section-label'>Shear & Torsion</div>", unsafe_allow_html=True)
         combined_lines = [
-            f"Vu = {format_number(combined.vu_kg)} kg | Tu = {format_number(combined.tu_kgfm)} kgf-m",
+            f"Vu = {format_number(combined.vu_kg)} kgf | Tu = {format_number(combined.tu_kgfm)} kgf-m",
             f"Transverse req. = shear {combined.shear_required_transverse_mm2_per_mm:.6f} + torsion {combined.torsion_required_transverse_mm2_per_mm:.6f} = {combined.combined_required_transverse_mm2_per_mm:.6f} mm<sup>2</sup>/mm",
             f"Transverse prov. = {combined.provided_transverse_mm2_per_mm:.6f} mm<sup>2</sup>/mm | Capacity Ratio (Shear + Torsion) = {format_ratio(combined.capacity_ratio, 3)}",
             f"Shared stirrups = \u03d5{combined.stirrup_diameter_mm} mm / {combined.stirrup_legs} legs @ {format_number(combined.stirrup_spacing_cm)} cm | {combined.design_status}",
         ]
+        if combined.cross_section_limit_check_applied:
+            combined_lines.append(
+                "Combined section limit = "
+                f"{combined.cross_section_limit_lhs_mpa:.3f} / {combined.cross_section_limit_rhs_mpa:.3f} MPa "
+                f"(ratio {format_ratio(combined.cross_section_limit_ratio, 3)})"
+            )
         for line in combined_lines:
             st.markdown(f"<div class='design-banner info'>{line}</div>", unsafe_allow_html=True)
         st.markdown("<div class='section-label'>Longitudinal Torsion Steel</div>", unsafe_allow_html=True)
@@ -1011,11 +1017,17 @@ def _ensure_deflection_support_state() -> None:
     _sync_deflection_member_controls()
 
 
-def _deflection_reference_diagram_html(preview_results=None, *, summary_mode: bool = False, palette=None) -> str:
+def _deflection_reference_diagram_html(
+    preview_results=None,
+    *,
+    summary_mode: bool = False,
+    palette=None,
+    support_condition_override: str | None = None,
+) -> str:
     palette = palette or LIGHT_THEME
     support_color = "#111111"
     calculated_curve_color = "#0b5cab"
-    support_condition = st.session_state.deflection_support_condition
+    support_condition = support_condition_override or st.session_state.deflection_support_condition
     width = 520.0
     height = 172.0
     beam_y = 68.0
@@ -1204,8 +1216,8 @@ def _deflection_long_term_clause_for_info() -> str:
     mapping = {
         DeflectionCodeVersion.ACI318_99: "ACI318-99 - Clause 9.5.2.5",
         DeflectionCodeVersion.ACI318_11: "ACI318-11 - Clause 9.5.2.5",
-        DeflectionCodeVersion.ACI318_14: "ACI318-14 - Chapter 24.2.4",
-        DeflectionCodeVersion.ACI318_19: "ACI318-19 - Chapter 24.2.4",
+        DeflectionCodeVersion.ACI318_14: "ACI318-14 - Clause 24.2.4",
+        DeflectionCodeVersion.ACI318_19: "ACI318-19 - Clause 24.2.4",
     }
     return mapping[_selected_deflection_code_for_info()]
 
@@ -1214,8 +1226,8 @@ def _deflection_immediate_clause_for_info() -> str:
     mapping = {
         DeflectionCodeVersion.ACI318_99: "ACI318-99 - Clause 9.5.2 and Clause 9.5.2.3",
         DeflectionCodeVersion.ACI318_11: "ACI318-11 - Clause 9.5.2 and Clause 9.5.2.3",
-        DeflectionCodeVersion.ACI318_14: "ACI318-14 - Chapter 24.2.3",
-        DeflectionCodeVersion.ACI318_19: "ACI318-19 - Chapter 24.2.3",
+        DeflectionCodeVersion.ACI318_14: "ACI318-14 - Clause 24.2.3 together with Clause 24.2.3.5",
+        DeflectionCodeVersion.ACI318_19: "ACI318-19 - Clause 24.2.3 together with Table 24.2.3.5",
     }
     return mapping[_selected_deflection_code_for_info()]
 
@@ -1736,8 +1748,13 @@ def render_key_metrics(inputs: BeamDesignInputSet, results, palette) -> None:
                 capacity_ratio_html(combined.capacity_ratio),
                 "Combined required transverse reinforcement / provided transverse reinforcement",
             ),
-            ("V<sub>u</sub>", format_number(combined.vu_kg), "kg"),
+            ("V<sub>u</sub>", format_number(combined.vu_kg), "kgf"),
             ("T<sub>u</sub>", format_number(combined.tu_kgfm), "kgf-m"),
+            (
+                "Section stress ratio",
+                capacity_ratio_html(combined.cross_section_limit_ratio) if combined.cross_section_limit_check_applied else "-",
+                combined.cross_section_limit_clause or "Combined section limit not applied",
+            ),
             (
                 "Req. transverse",
                 f"{combined.combined_required_transverse_mm2_per_mm:.6f}",
@@ -1884,8 +1901,8 @@ def _build_shear_torsion_interaction_diagram_html(combined, palette, torsion_res
     def sy(value: float) -> float:
         return padding_top + plot_height - (value / axis_limit) * plot_height
 
-    status_color = palette.ok if combined.capacity_ratio <= 1.0 + 1e-9 else palette.fail
-    pass_fill = palette.ok if combined.capacity_ratio <= 1.0 + 1e-9 else palette.warning
+    status_color = palette.ok if combined.design_status == "PASS" else palette.fail
+    pass_fill = palette.ok if combined.design_status == "PASS" else palette.warning
     demand_x = min(shear_ratio, axis_limit)
     demand_y = min(torsion_ratio, axis_limit)
     x_ticks = [0.0, 0.5, 1.0, axis_limit]
@@ -1919,6 +1936,86 @@ def _build_shear_torsion_interaction_diagram_html(combined, palette, torsion_res
     if torsion_results is not None and torsion_warning_text and torsion_warning_text != torsion_results.pass_fail_summary:
         warning_html = f"<div class='design-banner fail'>{torsion_warning_text}</div>"
 
+    solid_section_graph_html = ""
+    if combined.cross_section_limit_check_applied and combined.cross_section_limit_rhs_mpa > 0:
+        solid_axis_limit = min(
+            max(
+                1.0,
+                combined.shear_section_stress_mpa / combined.cross_section_limit_rhs_mpa,
+                combined.torsion_section_stress_mpa / combined.cross_section_limit_rhs_mpa,
+            ) * 1.15,
+            2.5,
+        )
+        solid_width = width
+        solid_height = height
+        solid_padding_left = padding_left
+        solid_padding_right = padding_right
+        solid_padding_top = 18.0
+        solid_padding_bottom = 42.0
+        solid_plot_width = solid_width - solid_padding_left - solid_padding_right
+        solid_plot_height = solid_height - solid_padding_top - solid_padding_bottom
+
+        def ssx(value: float) -> float:
+            return solid_padding_left + (value / solid_axis_limit) * solid_plot_width
+
+        def ssy(value: float) -> float:
+            return solid_padding_top + solid_plot_height - (value / solid_axis_limit) * solid_plot_height
+
+        solid_ticks = [0.0, 0.5, 1.0, solid_axis_limit]
+        solid_x_tick_markup = []
+        solid_y_tick_markup = []
+        for tick in solid_ticks:
+            tick_x = ssx(tick)
+            tick_y = ssy(tick)
+            solid_x_tick_markup.append(
+                f"<line x1='{tick_x:.2f}' y1='{solid_padding_top + solid_plot_height:.2f}' x2='{tick_x:.2f}' y2='{solid_padding_top + solid_plot_height + 5:.2f}' stroke='{palette.muted_text}' stroke-width='1' />"
+                f"<text x='{tick_x:.2f}' y='{solid_height - 12:.2f}' text-anchor='middle' font-size='9.5' fill='{palette.muted_text}'>{tick:.2f}</text>"
+            )
+            solid_y_tick_markup.append(
+                f"<line x1='{solid_padding_left - 5:.2f}' y1='{tick_y:.2f}' x2='{solid_padding_left:.2f}' y2='{tick_y:.2f}' stroke='{palette.muted_text}' stroke-width='1' />"
+                f"<text x='{solid_padding_left - 8:.2f}' y='{tick_y + 3:.2f}' text-anchor='end' font-size='9.5' fill='{palette.muted_text}'>{tick:.2f}</text>"
+            )
+
+        curve_points = []
+        for index in range(51):
+            x_value = solid_axis_limit * index / 50.0
+            if x_value <= 1.0:
+                y_value = math.sqrt(max(1.0 - (x_value**2), 0.0))
+            else:
+                y_value = 0.0
+            curve_points.append(f"{ssx(x_value):.2f},{ssy(y_value):.2f}")
+        solid_curve_points = " ".join(curve_points)
+        solid_demand_x = min(combined.shear_section_stress_mpa / combined.cross_section_limit_rhs_mpa, solid_axis_limit)
+        solid_demand_y = min(combined.torsion_section_stress_mpa / combined.cross_section_limit_rhs_mpa, solid_axis_limit)
+        solid_demand_point_x = ssx(solid_demand_x)
+        solid_demand_point_y = ssy(solid_demand_y)
+
+        solid_section_graph_html = f"""
+    <div class="metric-card" style="margin-top:0.85rem;">
+      <div class="section-label">Solid Section Combined Section-Limit Diagram</div>
+      <svg width="100%" style="display:block;max-width:{solid_width:.0f}px;margin:0 auto;" viewBox="0 0 {solid_width:.0f} {solid_height:.0f}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Solid-section combined section-limit diagram">
+        <rect x="0" y="0" width="{solid_width:.0f}" height="{solid_height:.0f}" rx="14" fill="{palette.surface_alt}" />
+        <rect x="{solid_padding_left:.2f}" y="{solid_padding_top:.2f}" width="{solid_plot_width:.2f}" height="{solid_plot_height:.2f}" rx="12" fill="{palette.surface}" stroke="{palette.border}" stroke-width="1.3" />
+        <line x1="{solid_padding_left:.2f}" y1="{solid_padding_top + solid_plot_height:.2f}" x2="{solid_padding_left + solid_plot_width:.2f}" y2="{solid_padding_top + solid_plot_height:.2f}" stroke="{palette.text}" stroke-width="1.8" />
+        <line x1="{solid_padding_left:.2f}" y1="{solid_padding_top + solid_plot_height:.2f}" x2="{solid_padding_left:.2f}" y2="{solid_padding_top:.2f}" stroke="{palette.text}" stroke-width="1.8" />
+        <polyline points="{solid_curve_points}" fill="none" stroke="{palette.text}" stroke-width="2" stroke-dasharray="5 4" />
+        {''.join(solid_x_tick_markup)}
+        {''.join(solid_y_tick_markup)}
+        <line x1="{solid_demand_point_x:.2f}" y1="{solid_padding_top + solid_plot_height:.2f}" x2="{solid_demand_point_x:.2f}" y2="{solid_demand_point_y:.2f}" stroke="{status_color}" stroke-width="1.4" stroke-opacity="0.7" stroke-dasharray="4 4" />
+        <line x1="{solid_padding_left:.2f}" y1="{solid_demand_point_y:.2f}" x2="{solid_demand_point_x:.2f}" y2="{solid_demand_point_y:.2f}" stroke="{status_color}" stroke-width="1.4" stroke-opacity="0.7" stroke-dasharray="4 4" />
+        <circle cx="{solid_demand_point_x:.2f}" cy="{solid_demand_point_y:.2f}" r="5.5" fill="{status_color}" stroke="{palette.surface}" stroke-width="2" />
+        <text x="{solid_demand_point_x + 8:.2f}" y="{solid_demand_point_y - 8:.2f}" font-size="10" font-weight="600" fill="{status_color}">Demand point</text>
+        <text x="{solid_padding_left + solid_plot_width / 2:.2f}" y="{solid_height - 2:.2f}" text-anchor="middle" font-size="10.5" font-weight="600" fill="{palette.text}">Shear stress / limit stress</text>
+        <text x="14" y="{solid_padding_top + solid_plot_height / 2:.2f}" text-anchor="middle" font-size="10.5" font-weight="600" fill="{palette.text}" transform="rotate(-90 14 {solid_padding_top + solid_plot_height / 2:.2f})">Torsion stress / limit stress</text>
+      </svg>
+      <div class="metric-note">
+        Solid-section check uses (x<sup>2</sup> + y<sup>2</sup>)<sup>1/2</sup> &le; 1.00 on the section-stress basis.
+        Demand point = ({combined.shear_section_stress_mpa / combined.cross_section_limit_rhs_mpa:.3f}, {combined.torsion_section_stress_mpa / combined.cross_section_limit_rhs_mpa:.3f}),
+        combined ratio = {combined.cross_section_limit_ratio:.3f}.
+      </div>
+    </div>
+"""
+
     return f"""
     <div class="metric-card">
       <div class="section-label">Shear&ndash;Torsion Interaction Diagram</div>
@@ -1944,6 +2041,7 @@ def _build_shear_torsion_interaction_diagram_html(combined, palette, torsion_res
         combined ratio = {combined_ratio:.3f}.
       </div>
     </div>
+    {solid_section_graph_html}
     {warning_html}
     """
 
@@ -2293,7 +2391,7 @@ def _shear_spacing_clause_reference_for_ui(design_code: DesignCode, torsion_acti
             return "ACI 318-99 11.4.5 together with 11.6.6.1"
         if design_code == DesignCode.ACI318_11:
             return "ACI 318-11 11.4.5 together with 11.5.6.1"
-        return f"{_design_code_label_for_ui(design_code)} 9.7.6.2 together with 25.7.1.2"
+        return f"{_design_code_label_for_ui(design_code)} 9.7.6.2 together with 9.7.6.3.3"
     if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
         return f"{_design_code_label_for_ui(design_code)} 11.4.5"
     return f"{_design_code_label_for_ui(design_code)} 9.7.6.2"
@@ -2342,8 +2440,8 @@ def _torsion_spacing_clause_reference_for_ui(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.6.1",
         "ACI 318-11": "ACI 318-11 11.5.6.1",
-        "ACI 318-14": "ACI 318-14 25.7.1.2",
-        "ACI 318-19": "ACI 318-19 25.7.1.2",
+        "ACI 318-14": "ACI 318-14 9.7.6.3.3",
+        "ACI 318-19": "ACI 318-19 9.7.6.3.3",
     }
     return mapping.get(code_version, code_version)
 
@@ -2352,8 +2450,8 @@ def _torsion_cross_section_clause_reference_for_ui(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.3.1",
         "ACI 318-11": "ACI 318-11 11.5.3.1",
-        "ACI 318-14": "ACI 318-14 22.7.7",
-        "ACI 318-19": "ACI 318-19 22.7.7",
+        "ACI 318-14": "ACI 318-14 22.7.7.1",
+        "ACI 318-19": "ACI 318-19 22.7.7.1",
     }
     return mapping.get(code_version, code_version)
 

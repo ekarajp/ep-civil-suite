@@ -158,6 +158,36 @@ def test_allowable_limit_dropdown_and_custom_limit_work() -> None:
     assert custom_results.allowable_deflection_cm == pytest.approx(1.2)
 
 
+def test_long_term_multiplier_can_drop_below_one_with_high_compression_reinforcement() -> None:
+    results = design_deflection_check(
+        DeflectionDesignInput(
+            code_version=DeflectionCodeVersion.ACI318_19,
+            member_type=DeflectionMemberType.SIMPLE_BEAM,
+            support_condition=DeflectionSupportCondition.SIMPLE,
+            span_length_m=6.0,
+            service_loads=DeflectionServiceLoadInput(
+                dead_load_kgf_per_m=200.0,
+                live_load_kgf_per_m=120.0,
+                sustained_live_load_ratio=0.5,
+            ),
+            midspan_section=DeflectionSectionReinforcementInput(
+                tension_as_cm2=8.0,
+                compression_as_cm2=15.0,
+                effective_depth_cm=20.0,
+                compression_depth_cm=5.0,
+            ),
+        )
+    )
+
+    expected_multiplier = 2.0 / (1.0 + (50.0 * (15.0 / (20.0 * 20.0))))
+
+    assert expected_multiplier < 1.0
+    assert results.long_term_multiplier == pytest.approx(expected_multiplier)
+    assert results.additional_long_term_deflection_cm == pytest.approx(
+        results.sustained_initial_deflection_cm * expected_multiplier
+    )
+
+
 def test_zero_service_loads_produce_explicit_input_notice() -> None:
     results = design_deflection_check(
         DeflectionDesignInput(

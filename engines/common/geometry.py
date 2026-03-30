@@ -110,7 +110,7 @@ def calculate_beam_geometry(input_data: BeamGeometryInputData) -> BeamGeometryRe
         geometry,
         input_data.positive_tension_reinforcement,
         input_data.stirrup_diameter_mm,
-        denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1)),
+        denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)),
     )
 
     negative_compression_centroid_cm: float | None = None
@@ -129,7 +129,7 @@ def calculate_beam_geometry(input_data: BeamGeometryInputData) -> BeamGeometryRe
             geometry,
             input_data.negative_tension_reinforcement,
             input_data.stirrup_diameter_mm,
-            denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1)),
+            denominator_groups=((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)),
         )
         d_minus_cm = geometry.depth_cm - negative_tension_centroid_from_top_cm
         negative_compression_spacing = calculate_reinforcement_spacing(

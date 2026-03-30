@@ -10,7 +10,9 @@ from apps.singly_beam.models import (
 )
 from apps.singly_beam.visualization import (
     STIRRUP_DRAWING_COLOR,
+    PhiFlexureChartState,
     build_beam_section_svg,
+    build_flexural_phi_chart_svg,
     build_section_rebar_details,
     compute_bar_points,
     compute_torsion_side_bar_points,
@@ -50,6 +52,25 @@ def test_three_layer_capacity_is_supported() -> None:
     bars = compute_bar_points(inputs, inputs.positive_bending.tension_reinforcement, face="bottom")
 
     assert max(bar.layer_index for bar in bars) == 3
+
+
+def test_flexural_phi_chart_keeps_low_phi_branch_inside_plot_bounds() -> None:
+    svg = build_flexural_phi_chart_svg(
+        LIGHT_THEME,
+        PhiFlexureChartState(
+            title="Positive Moment Flexural Phi",
+            design_code=BeamDesignInputSet().metadata.design_code,
+            et=0.02345,
+            ety=0.00196,
+            phi=0.90,
+        ),
+    )
+
+    polyline_fragment = svg.split('points="')[1].split('"', 1)[0]
+    y_values = [float(point.split(",")[1]) for point in polyline_fragment.split()]
+
+    assert min(y_values) >= 14.0
+    assert max(y_values) <= 146.0
 
 
 def test_layer_bar_order_places_corner_bars_outside_and_middle_bar_at_center() -> None:

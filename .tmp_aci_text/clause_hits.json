@@ -1,0 +1,606 @@
+{
+  "11": {
+    "9.5": [
+      {
+        "page": 7,
+        "snippet": "................................................................................................................... 126 9.5\u2014Control of deflections .................................................................................................................................................. 126 CHAPTER 10\u2014FLEXURE AND AXIAL LOADS ................................................................................. 135 10.1\u2014Scope..........."
+      },
+      {
+        "page": 9,
+        "snippet": ".................................................................................................................. 319 19.5\u2014Construction.............................................................................................................................................................. 321 CHAPTER 20\u2014STRENGTH EVALUATION OF EXISTING STRUCTURES ...................................... 323 20.1\u2014Strength evaluation\u2014General ..........."
+      },
+      {
+        "page": 26,
+        "snippet": "18 fpy = specified yield strength of prestressing steel, MPa, Chapter 18 fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18 fs\u2032 = stress in compression reinforcement under factored loads, MPa, Appendix A fse = effective stress in prestressing steel (after allowance for all prestress losses), MPa, Chapters 12, 18, Ap"
+      }
+    ],
+    "9.5.2": [
+      {
+        "page": 26,
+        "snippet": "18 fpy = specified yield strength of prestressing steel, MPa, Chapter 18 fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18 fs\u2032 = stress in compression reinforcement under factored loads, MPa, Appendix A fse = effective stress in prestressing steel (after allowance for all prestress losses), MPa, Chapters 12, 18, Ap"
+      },
+      {
+        "page": 27,
+        "snippet": "member curvature used for design of compression member, N\u00b7mm, see 10.10.6, Chapter 10 M cr = cracking moment, N\u00b7mm, see 9.5.2.3, Chap- ters 9, 14 Mcre = moment causing flexural cracking at section due to externally applied loads, N\u00b7mm, Chapter 11 Mm = factored moment modified to account for effect of axial compression, N\u00b7mm, see 11.2.2.2, Chapter 11 M max = maximum factored moment at section due to externally applied loads, N\u00b7mm, Chapte"
+      },
+      {
+        "page": 30,
+        "snippet": "e anchorage applications, see D.3.6, Appendix D \u03bb\u0394 = multiplier for additional deflection due to long-term effects, see 9.5.2.5, Chapter 9 \u03bc = coefficient of friction, see 11.6.4.3 , Chapters 11, 21 \u03be = time-dependent factor for sustained load, see 9.5.2.5, Chapter 9"
+      }
+    ],
+    "9.5.2.3": [
+      {
+        "page": 26,
+        "snippet": "18 fpy = specified yield strength of prestressing steel, MPa, Chapter 18 fr = modulus of rupture of concrete, MPa, see 9.5.2.3, Chapters 9, 14, 18, Appendix B fs = calculated tensile stress in reinforcement at service loads, MPa, Chapters 10, 18 fs\u2032 = stress in compression reinforcement under factored loads, MPa, Appendix A fse = effective stress in prestressing steel (after allowance for all prestress losses), MPa, Chapters 12, 18, Ap"
+      },
+      {
+        "page": 27,
+        "snippet": "member curvature used for design of compression member, N\u00b7mm, see 10.10.6, Chapter 10 M cr = cracking moment, N\u00b7mm, see 9.5.2.3, Chap- ters 9, 14 Mcre = moment causing flexural cracking at section due to externally applied loads, N\u00b7mm, Chapter 11 Mm = factored moment modified to account for effect of axial compression, N\u00b7mm, see 11.2.2.2, Chapter 11 M max = maximum factored moment at section due to externally applied loads, N\u00b7mm, Chapte"
+      },
+      {
+        "page": 132,
+        "snippet": "CONCRETE BUILDING CODE (ACI 318M-11) AND COMMENTARY American Concrete Institute Copyrighted Material\u2014www.concrete.org R9.5.2.3 \u2014 The effective moment of inertia procedure described in the Code and developed in Reference 9.16 was selected as being sufficiently accurate for use to control deflections.9.17-9.19 The effective mo ment of inertia Ie was developed to provide a transition between the upper and lower bounds of I g and Icr as a"
+      }
+    ],
+    "9.5.2.5": [
+      {
+        "page": 30,
+        "snippet": "e anchorage applications, see D.3.6, Appendix D \u03bb\u0394 = multiplier for additional deflection due to long-term effects, see 9.5.2.5, Chapter 9 \u03bc = coefficient of friction, see 11.6.4.3 , Chapters 11, 21 \u03be = time-dependent factor for sustained load, see 9.5.2.5, Chapter 9"
+      },
+      {
+        "page": 132,
+        "snippet": "the effect of cracking) has the dominant effect on deflections, as shown by ACI Committee 435 9.20,9.21 and SP-43.9.14 R9.5.2.5 \u2014 Shrinkage and creep due to sustained loads cause additional long-term deflections over and above those that occur when loads are first placed on the structure. Such deflections are influenced by temperature, humidity, curing conditions, age at time of load ing, quantity of compression reinforcement, and magni"
+      },
+      {
+        "page": 133,
+        "snippet": "achment of the nonstructural elements may be deducted. In making this correction, use may be made of the curve in Fig. R9.5.2.5 for members of usual sizes and shapes. R9.5.3 \u2014 Two-way construction (nonprestressed) TABLE 9.5(b) \u2014 MAXIMUM PERMISSIBLE COMPUTED DEFLECTIONS Type of member Deflection to be considered Deflection limitation Flat roofs not supporting or attached to nonstructural elements likely to be damaged by large deflection"
+      }
+    ],
+    "10.5.1": [
+      {
+        "page": 103,
+        "snippet": "ly in place and true to line. 7.10.5 \u2014 Ties Tie reinforcement for compression members shall conform to the following: 7.10.5.1 \u2014 All nonprestressed bars shall be enclosed by transverse ties, at least No. 10 in size for longitudinal bars No. 32 or smaller, and at least No. 13 in size for No. 36, No. 43, No. 57, and bundled longitudinal bars. Deformed wire or welded wire reinforcement of equivalent area shall be permitted. 7.10.5.2 \u2014 Vert"
+      },
+      {
+        "page": 144,
+        "snippet": "ilure in such a case can be sudden. To prevent such a failure, a minimum amount of tensile reinforcement is required by 10.5.1 in both positive and negative moment regions. When concrete strength higher than about 35 MPa is used, the 1.4/f y value previously prescribed may not be sufficient. Equation (10-3) gives the same amount of reinforcement as 1.4b wd/fy when f c\u2032 equals 31 MPa. When the flange of a section is in tension, the amoun"
+      },
+      {
+        "page": 145,
+        "snippet": "by analysis. This exception provides sufficient additional reinforcement in large members where the amount required by 10.5.1 or 10.5.2 would be excessive. R10.5.4 \u2014 The minimum reinforcement required for slabs should be equal to the same amount as that required by 7.12.2.1 for shrinkage and temperature reinforcement. Slabs-on-ground are not considered to be structural slabs in the context of this section, unless they transmit vertical"
+      }
+    ],
+    "11.3": [
+      {
+        "page": 7,
+        "snippet": "ded by concrete for nonprestressed members......................................................................... 164 11.3\u2014Shear strength provided by concrete for prestressed members............................................................................... 166 11.4\u2014Shear strength provided by shear reinforcement...................................................................................................... 169 11.5\u2014Design fo"
+      },
+      {
+        "page": 83,
+        "snippet": "ove 10\u00b0C and in a moist condition for at least the first 7 days after placement, except when cured in accordance with 5.11.3. 5.11.2 \u2014 High-early-strength concrete shall be main- tained above 10\u00b0C and in a moist condition for at least the first 3 days, except when cured in accordance with 5.11.3. much as 50 percent. Hence, equipment made of aluminum or aluminum alloys should not be used for pump lines, tremies, or chutes other than shor"
+      },
+      {
+        "page": 84,
+        "snippet": "ete Institute Copyrighted Material\u2014www.concrete.org 80 STRUCTURAL CONCRETE BUILDING CODE (ACI 318M-11) AND COMMENTARY 5.11.3 \u2014 Accelerated curing 5.11.3.1 \u2014 Curing by high-pressure steam, steam at atmospheric pressure, heat and moisture, or other accepted processes, shall be permitted to accelerate strength gain and reduce time of curing. 5.11.3.2 \u2014 Accelerated curing shall provide a compressive strength of the concrete at the load stag"
+      }
+    ],
+    "11.4": [
+      {
+        "page": 7,
+        "snippet": "by concrete for prestressed members............................................................................... 166 11.4\u2014Shear strength provided by shear reinforcement...................................................................................................... 169 11.5\u2014Design for torsion..........................................................................................................................................."
+      },
+      {
+        "page": 24,
+        "snippet": "einforcement within spacing s2, mm2, Chapter 11 Av,min = minimum area of shear reinforcement within spacing s, mm2, see 11.4.6.3 and 11.4.6.4 , Chapter 11 AVc = projected concrete failure area of a single anchor or group of anchors, for calculation of strength in shear, mm 2, see D.6.2.1, Appendix D AVco = projected concrete failure area of a single anchor, for calculation of strength in shear, if not limited by corner influences, spac"
+      },
+      {
+        "page": 30,
+        "snippet": "Chapter 11 \u03b1v = ratio of flexural stiffness of shearhead arm to that of the surrounding composite slab section, see 11.11.4.5, Chapter 11 \u03b2 = ratio of long to short dimensions: clear spans for two-way slabs, see 9.5.3.3 and 22.5.4; sides of column, concentrated load or reaction area, see 11.11.2.1 ; or sides of a footing, see 15.4.4.2, Chapters 9, 11, 15, 22 \u03b2b = ratio of area of reinforcement cut off to total area of tension reinforce"
+      }
+    ],
+    "11.4.5": [
+      {
+        "page": 30,
+        "snippet": "Chapter 11 \u03b1v = ratio of flexural stiffness of shearhead arm to that of the surrounding composite slab section, see 11.11.4.5, Chapter 11 \u03b2 = ratio of long to short dimensions: clear spans for two-way slabs, see 9.5.3.3 and 22.5.4; sides of column, concentrated load or reaction area, see 11.11.2.1 ; or sides of a footing, see 15.4.4.2, Chapters 9, 11, 15, 22 \u03b2b = ratio of area of reinforcement cut off to total area of tension reinforce"
+      },
+      {
+        "page": 174,
+        "snippet": "ent shall extend to a distance d from extreme compression fiber and shall be developed at both ends according to 12.13. 11.4.5 \u2014 Spacing limits for shear reinforcement 11.4.5.1 \u2014 Spacing of shear reinforcement placed perpendicular to axis of member shall not exceed d /2 in nonprestressed members or 0.75h in prestressed members, nor 600 mm. 11.4.5.2 \u2014 Inclined stirrups and bent longitudinal reinforcement shall be so spaced that every 45-"
+      },
+      {
+        "page": 175,
+        "snippet": "or this purpose should not exceed the smaller of 1.5 h or 1.2 m. When applicable, the shear reinforcement provisions of 11.4.5 and 11.4.6 will require closer stirrup spacings. For repeated loading of flexural members, the possibility of inclined diagonal tension crack s forming at stresses appre- ciably smaller than under static loading should be taken into account in the design. In these instances, it would be prudent to use at least t"
+      }
+    ],
+    "11.4.6.3": [
+      {
+        "page": 24,
+        "snippet": "einforcement within spacing s2, mm2, Chapter 11 Av,min = minimum area of shear reinforcement within spacing s, mm2, see 11.4.6.3 and 11.4.6.4 , Chapter 11 AVc = projected concrete failure area of a single anchor or group of anchors, for calculation of strength in shear, mm 2, see D.6.2.1, Appendix D AVco = projected concrete failure area of a single anchor, for calculation of strength in shear, if not limited by corner influences, spac"
+      },
+      {
+        "page": 166,
+        "snippet": "orced or prestressed concrete beams and concrete joist construction having minimum web reinforcement in accordance with 11.4.6.3, 11.4.6.4, or 11.5.5.2. fc\u2032 11.1.3 \u2014 Computation of maximum Vu at supports in accordance with 11.1.3.1 or 11.1.3.2 shall be permitted if all conditions (a), (b), and (c) are satisfied: (a) Support reaction, in direction of applied shear, introduces compression into the end regions of member; (b) Loads are appl"
+      },
+      {
+        "page": 176,
+        "snippet": "ions were in error such as to result in a reduced member strength, a satisfac- tory margin of safety will be retained. R11.4.6.3 \u2014 Previous versions of the Code have required a minimum area of transverse reinforcement that is independent of concrete strength. Tests 11.9 have indicated the need to increase the minimum area of shear reinforce- ment as concrete strength increases to prevent sudden shear failures when inclined cracking occu"
+      }
+    ],
+    "11.4.7.2": [
+      {
+        "page": 177,
+        "snippet": "hear reinforce- ment shall be provided to satisfy Eq. (11-1) and (11-2), where V s shall be computed in accordance with 11.4.7.2 through 11.4.7.9. 11.4.7.2 \u2014 Where shear reinforcement perpendicular to axis of member is used, (11-15) where Av is the area of shear reinforcement within spacing s. Vs Avfyt d s------------------ ="
+      }
+    ],
+    "11.5.1": [
+      {
+        "page": 23,
+        "snippet": "erse reinforcement, mm 2, Chapters 10, 21 Acp = area enclosed by outside perimeter of concrete cross section, mm 2, see 11.5.1 , Chapter 11 Acs = cross-sectional area at one end of a strut in a strut-and-tie model, taken perpendicular to the axis of the strut, mm 2, Appendix A Act = area of that part of cross section between the flexural tension face and center of gravity of gross section, mm 2, Chapter 18 Acv = gross area of concrete s"
+      },
+      {
+        "page": 28,
+        "snippet": "ith V u , to be taken as positive for tension, N, Chapter 11 pcp = outside perimeter of concrete cross section, mm, see 11.5.1, Chapter 11 ph = perimeter of centerline of outermost closed transverse torsional reinforcement, mm, Chapter 11 P b = nominal axial strength at balanced strain conditions, N, see Appendixes B, C Pc = critical buckling load, N, see 10.10.6, Chapter 10 Pn = nominal axial strength of cross section, N, Chapters 9, 1"
+      },
+      {
+        "page": 119,
+        "snippet": "s related to stiffness and flexural calculations. Provisions related to T-beams and other flanged members are stated in 11.5.1 with regard to torsion. 8.12 \u2014 T-beam construction 8.12.1 \u2014 In T -beam construction, the flange and web shall be built integrally or otherwise effectively bonded together. 8.12.2 \u2014 Width of slab effective as a T -beam flange shall not exceed one-quarter of the span length of the beam, and the effective overhangi"
+      }
+    ],
+    "11.5.3.1": [
+      {
+        "page": 32,
+        "snippet": "n the prestressing steel due to prestressing and factored bending moments at the section under consideration, MPa, see R11.5.3.10, Chapter 11 \u03b5cu = maximum usable strain at extreme concrete compression fiber, Fig. R10.3.3 \u03c6K = stiffness reduction factor, see R10.10, Chapter 10"
+      },
+      {
+        "page": 182,
+        "snippet": "this distance, the critical section for design shall be at the face of the support. 11.5.3 \u2014 Torsional moment strength 11.5.3.1 \u2014 The cross-sectional dimensions shall be such that: (a) For solid sections (11-18) (b) For hollow sections (11-19) For prestressed members, d shall be determined in accordance with 11.4.3. Vu bwd-----------\uf0e8\uf0f8 \uf0e6\uf0f6 2 Tu ph 1.7Aoh 2------------------- \uf0e8\uf0f8 \uf0e7\uf0f7 \uf0e6\uf0f6 2 + \u03c6 Vc bwd----------- 0 . 6 6fc\u2032+\uf0e8\uf0f8 \uf0e6\uf0f6\u2264 Vu bwd-----"
+      },
+      {
+        "page": 183,
+        "snippet": "2 \u2014 Generally, the maximum will be on the wall where the torsional and shearing stresses are additive [Point A in Fig. R11.5.3.1(a)]. If the top or bottom flanges are thinner than the vertical webs, it may be necessary to evaluate Eq. (11-19) at points B and C in Fig. R11.5.3.1(a). At these points, the stresses due to the shear force are usually negligible. Fig. R11.5.3.1\u2014Addition of torsional and shear stresses. R11.5.3.4 \u2014 Limiting th"
+      }
+    ],
+    "11.5.3.3": [
+      {
+        "page": 183,
+        "snippet": "a hollow section, Eq. (11-19) shall be evaluated at the location where the left-hand side of Eq. (11-19) is a maximum. 11.5.3.3 \u2014 If the wall thickness is less than A oh /ph , the second term in Eq. (11-19) shall be taken as where t is the thickness of the wall of the hollow section at the location where the stresses are being checked. 11.5.3.4 \u2014 The values of fy and f yt used for design of torsional reinforcement shall not exceed 420"
+      }
+    ],
+    "11.5.3.7": [
+      {
+        "page": 185,
+        "snippet": "BUILDING CODE (ACI 318M-11) AND COMMENTARY 181 American Concrete Institute Copyrighted Material\u2014www.concrete.org Fig. R11.5.3.7\u2014Resolution of shear force V i into diagonal compression force Di and axial tension force Ni in one wall of the tube. in the individual sides of the tube or space truss, as shown in Fig. R11.5.3.6(a). The angle \u03b8 can be obtained by analysis 11.36 or may be taken to be equal to the values given in 11.5.3.6(a) or"
+      },
+      {
+        "page": 186,
+        "snippet": "longitudinal reinforcement including tendons shall satisfy the requirements in 11.5.6.2. R11.5.3.10 \u2014 As explained in R11.5.3.7, torsion causes an axial tension force. In a nonprestressed beam, this force is resisted by longitudinal reinforcement having an axial tensile strength of A l f y. This steel is in addition to the flexural reinforcement and is distributed uniformly around the sides of the perimeter so that the resultant of A"
+      },
+      {
+        "page": 189,
+        "snippet": "a square cross section, the p h /8 limitation requires stirrups at d/2, which corresponds to 11.4.5.1. R11.5.6.2 \u2014 In R11.5.3.7, it was shown that longitudinal reinforcement is needed to resist the sum of the longitudinal tensile forces due to torsion in the walls of the thin-walled tube. Since the force acts alon g the centroidal axis of the section, the centroid of the additional longitudinal reinforce- ment for torsion should approx"
+      }
+    ],
+    "11.5.5.1": [
+      {
+        "page": 188,
+        "snippet": "ckness effective for torsion where the wall thickness can be taken as A oh/ph. R11.5.5 \u2014 Minimum torsion reinforcement R11.5.5.1 and R11.5.5.2 \u2014 If a member is subject to a factored torsional moment Tu greater than the values specified in 11.5.1, the minimum amount of transverse web reinforce- ment for combined shear and torsion is 0.35 bw s/fyt . The differences in the definition of Av and the symbol At should be noted; A v is the area"
+      },
+      {
+        "page": 189,
+        "snippet": "factor and results in a volumetric ratio of about 0.5 percent. 11.5.5.3 \u2014 Where torsional reinforcement is required by 11.5.5.1, the minimum total area of longi- tudinal torsional reinforcement, A l,min, shall be computed by (11-24) where At /s shall not be taken less than 0.175bw /fyt; fyt refers to closed transverse torsional reinforcement, and fy refers to longitudinal reinforcement. 11.5.6 \u2014 Spacing of torsion reinforcement 11.5.6."
+      }
+    ],
+    "11.5.5.2": [
+      {
+        "page": 166,
+        "snippet": "ncrete beams and concrete joist construction having minimum web reinforcement in accordance with 11.4.6.3, 11.4.6.4, or 11.5.5.2. fc\u2032 11.1.3 \u2014 Computation of maximum Vu at supports in accordance with 11.1.3.1 or 11.1.3.2 shall be permitted if all conditions (a), (b), and (c) are satisfied: (a) Support reaction, in direction of applied shear, introduces compression into the end regions of member; (b) Loads are applied at or near the top"
+      },
+      {
+        "page": 185,
+        "snippet": "ue used in Eq. (11-21) and At /s shall be taken as the amount computed from Eq. (11-21) not modified in accordance with 11.5.5.2 or 11.5.5.3; f yt refers to closed transverse torsional reinforcement, and fy refers to longitudinal torsional reinforcement. Al At s------ph= fyt fy ------\uf0e8\uf0f8 \uf0e6\uf0f6 cot2\u03b8"
+      },
+      {
+        "page": 188,
+        "snippet": "ve for torsion where the wall thickness can be taken as A oh/ph. R11.5.5 \u2014 Minimum torsion reinforcement R11.5.5.1 and R11.5.5.2 \u2014 If a member is subject to a factored torsional moment Tu greater than the values specified in 11.5.1, the minimum amount of transverse web reinforce- ment for combined shear and torsion is 0.35 bw s/fyt . The differences in the definition of Av and the symbol At should be noted; A v is the area of two legs o"
+      }
+    ],
+    "11.5.5.3": [
+      {
+        "page": 23,
+        "snippet": "ent to resist torsion, mm2, Chapter 11 Al,min = minimum area of longitudinal reinforcement to resist torsion, mm2, see 11.5.5.3, Chapter 11 ANa = projected influence area of a single adhesive anchor or group of adhesive anchors, for calculation of bond strength in tension, mm 2, see D.5.5.1, Appendix D ANao = projected influence area of a single adhesive anchor, for calculation of bond strength in tension if not limited by edge distanc"
+      },
+      {
+        "page": 185,
+        "snippet": "q. (11-21) and At /s shall be taken as the amount computed from Eq. (11-21) not modified in accordance with 11.5.5.2 or 11.5.5.3; f yt refers to closed transverse torsional reinforcement, and fy refers to longitudinal torsional reinforcement. Al At s------ph= fyt fy ------\uf0e8\uf0f8 \uf0e6\uf0f6 cot2\u03b8"
+      },
+      {
+        "page": 186,
+        "snippet": "s at the section simultaneously with Tu, except that the reinforcement provided shall not be less than that required by 11.5.5.3 or 11.5.6.2. 11.5.3.10 \u2014 In prestressed beams: (a) The total longitudinal reinforcement including prestressing steel at each section shall resist M u at that section plus an additional concentric longitu- dinal tensile force equal to A lfy, based on Tu at that section; (b) The spacing of the longitudinal reinf"
+      }
+    ],
+    "11.5.6.1": [
+      {
+        "page": 189,
+        "snippet": "nsverse torsional reinforcement, and fy refers to longitudinal reinforcement. 11.5.6 \u2014 Spacing of torsion reinforcement 11.5.6.1 \u2014 The spacing of transverse torsion reinforce- ment shall not exceed the smaller of ph /8 or 300 mm. Al min, 0.42 fc\u2032Acp fy --------------------------------- At s------\uf0e8\uf0f8 \uf0e6\uf0f6 ph fyt fy ------\u2013= 11.5.6.2 \u2014 The longitudinal reinforcement required for torsion shall be distributed around the perimeter of the closed"
+      }
+    ]
+  },
+  "14": {
+    "24.2.3": [
+      {
+        "page": 401,
+        "snippet": "ions that adversely affect strength or serviceability of a structure. 24.2.2 Deflections calculated in accordance with 24.2.3 through 24.2.5 shall not exceed the limits in Table 24.2.2. R24\u2014SERVICEABILITY REQUIREMENTS R24.1\u2014Scope This chapter prescribes serviceability requirements that are referenced by other chapters of the Code, or are other - wise applicable to provide adequate performance of struc- tural members. This chapter d"
+      },
+      {
+        "page": 402,
+        "snippet": "R24.2.3 Calculation of immediate deflections R24.2.3.1 For calculation of immediate deflections of uncracked prismatic members, the usual methods or formulas for elastic deflections may be used with a constant value of E cIg along the length of the member. However, if the member is expected to crack at one or more s"
+      },
+      {
+        "page": 403,
+        "snippet": "R24.2.3.7 The use of the midspan section properties for continuous prismatic members is considered satisfactory in approximate calculations primarily because the midspan stiffness (including the effect of cracking) has the domi- nant effect on deflections, as shown by ACI 435.5R, ACI Committee 435 (1978), and Sabnis"
+      }
+    ],
+    "24.2.4": [
+      {
+        "page": 401,
+        "snippet": "ment of the nonstruc- tural elements may be deducted. In making this correction, use may be made of the curve in Fig. R24.2.4.1 for members of usual sizes and shapes. American Concrete Institute \u2013 Copyrighted \u00a9 Material \u2013 www.concrete.org CHAPTER 24\u2014SERVICEABILITY REQUIREMENTS 399 CODE COMMENTARY 24"
+      },
+      {
+        "page": 402,
+        "snippet": "rances, and reliability of provisions for drainage. [2]Time-dependent deflection shall be calculated in accordance with 24.2.4, but shall be permitted to be reduced by amount of deflection calculated to occur before attachment of nonstructural elements. This amount shall be calculated on basis of accepted engineering data relating to time-deflection characteristics of members similar to those being considered. [3]Limit shall be permitt"
+      },
+      {
+        "page": 403,
+        "snippet": "reep camber is also given in Shaikh and Branson (1970), with approximate forms given in ACI 209R and Branson (1970). R24.2.4 Calculation of time-dependent deflections R24.2.4.1 Nonprestressed members\u2014Shrinkage and creep cause time-dependent deflections in addition to the elastic deflections that occur when loads are first placed on the structure. Such deflections are influenced by tempera - ture, humidity, curing conditions, age at"
+      }
+    ],
+    "9.6.1.2": [
+      {
+        "page": 139,
+        "snippet": "9.6.1.2 As,min shall be the greater of (a) and (b), except as provided in 9.6.1.3. For a statically determinate beam with a flange in tension, the value of bw shall be the lesser of b f and 2bw. (a) 0.25 \u2032c w y f bdf (b) 1.4 w y bdf 9.6.1.3 If As provided at every section is at least one-third greater than As requi"
+      },
+      {
+        "page": 278,
+        "snippet": "section, for top as well as for bottom reinforcement, the amount of reinforcement shall be at least that required by 9.6.1.2 and the reinforce - ment ratio \u03c1 shall not exceed 0.025. Fig. R18.6.2\u2014Maximum effective width of wide beam and required transverse reinforcement. American Concrete Institute \u2013 Copyrighted \u00a9 Material \u2013 www.concrete.org 276 BUILDING CODE REQUIREMENTS FOR STRUCTURAL CONCRETE (ACI 318M-14) AND COMMENTARY (ACI 318R"
+      },
+      {
+        "page": 512,
+        "snippet": "yf\uf8eb\uf8f6 +\uf8ec\uf8f7\uf8ed\uf8f8 0.4 100,000 yf\uf8eb\uf8f6 +\uf8ec\uf8f7\uf8ed\uf8f8 9.3.1.1.2 (1.65 \u2013 0.0003wc) \u2265 1.09 (1.65 \u2013 0.0003wc) \u2265 1.09 (1.65 \u2013 0.005wc) \u2265 1.09 9.6.1.2(a) and (b) 0.25 c w y f bdf \u2032 1.4 w y bdf 0.80 c w y f bdf \u2032 14 w y bdf 3 c w y f bdf \u2032 200 w y bdf 9.6.3.1 Vu \u2264 \u03d50.17 cf \u2032 bwd Vu \u2264 \u03d50.53 cf \u2032 bwd Vu \u2264 \u03d52 cf \u2032 bwd 9.6.3.3 Av,min \u2265 0.062 w c yt bsf f\u2032 Av,min \u2265 0.35 w yt bs f Av,min \u2265 0.2 w c yt bsf f\u2032 Av,min \u2265 3.5 w yt bs f Av,min \u2265 0.75 w c yt bsf f\u2032 Av,min"
+      }
+    ],
+    "9.6.3": [
+      {
+        "page": 89,
+        "snippet": "r reinforcement \u2014The basis for minimum shear reinforcement for one-way slabs is the same as that for beams. Refer to R9.6.3 for additional information. R7.6.3.1 Solid slabs and footings have less stringent minimum shear reinforcement requirements than beams because there is a possibility of load sharing between weak and strong areas. However, research (Angelakos et al. 2001; Lubell et al. 2004; Brown et al. 2006) has shown that de"
+      },
+      {
+        "page": 140,
+        "snippet": "9.6.3 Minimum shear reinforcement 9.6.3.1 A minimum area of shear reinforcement, Av,min, shall be provided in all regions where V u > 0.5\u03d5Vc except for the cases in Table 9.6.3.1. For these cases, at least Av,min shall be provided where Vu > \u03d5Vc. Table 9.6.3.1\u2014Cases where A v,min is not required if 0.5\u03d5Vc < Vu \u2264 \u03d5V"
+      },
+      {
+        "page": 141,
+        "snippet": "stirrups used for this purpose is the smaller of 1.5h or 1.2 m. If applicable, the shear reinforcement provisions of 9.6.3 and 9.7.6.2.2 will require closer stirrup spacings. For repeated loading of beams, the possibility of inclined diagonal tension cracks forming at stresses appreciably smaller than under static loading should be taken into account in design. In these instances, use of at least the minimum shear reinforcement"
+      }
+    ],
+    "9.6.4.1": [
+      {
+        "page": 141,
+        "snippet": "Greater of: 0.062 \u2032 w c yt bf f (c) 0.35 w yt b f (d) 80 ps pu yt w Af d fd b (e) 9.6.4 Minimum torsional reinforcement 9.6.4.1 A minimum area of torsional reinforcement shall be provided in all regions where T u \u2265 \u03d5Tth in accordance with 22.7. American Concrete Institute \u2013 Copyrighted \u00a9 Material \u2013 www.concrete.org CHAPTER 9\u2014BEAMS 139 CODE COMMENTARY 9"
+      }
+    ],
+    "9.6.4.2": [
+      {
+        "page": 142,
+        "snippet": "R9.6.4.2 The differences in the definitions of Av and A t should be noted: Av is the area of two legs of a closed stirrup, whereas At is the area of only one leg of a closed stirrup. If a stirrup group has more than two legs, only the legs adja - cent to the sides of the beam are considered, as discussed in R9.5.4.3"
+      },
+      {
+        "page": 355,
+        "snippet": "tressed concrete beams and concrete joist construction having minimum web reinforcement in accordance with 9.6.3.3 or 9.6.4.2. 22.5.3.3 The values of f y and fyt used to calculate Vs shall not exceed the limits in 20.2.2.4. 22.5.4 Composite concrete members 22.5.4.1 This section shall apply to members constructed in separate placements but connected so that all elements resist loads as a unit. 22.5.4.2 For calculation of Vn for com"
+      },
+      {
+        "page": 512,
+        "snippet": "n \u2265 0.35 w yt bs f Av,min \u2265 0.2 w c yt bsf f\u2032 Av,min \u2265 3.5 w yt bs f Av,min \u2265 0.75 w c yt bsf f\u2032 Av,min \u2265 50 w yt bs f 9.6.4.2(a) and (b) (A v + 2At)/s \u2265 0.062 w c yt bf f\u2032 (Av + 2At)/s \u2265 0.35 w yt b f (Av + 2At)/s \u2265 0.2 w c yt bf f\u2032 (Av + 2At)/s \u2265 3.5 w yt b f (Av + 2At)/s \u2265 0.75 w c yt bf f\u2032 (Av + 2At)/s \u2265 50 w yt b f 9.6.4.3(a) and (b) A l,min \u2264 0.42 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 0.42 0.175cp ytw h y yt y"
+      }
+    ],
+    "9.6.4.3": [
+      {
+        "page": 142,
+        "snippet": "a of transverse closed stirrups has been made consistent with calculations required for minimum shear reinforcement. R9.6.4.3 Under combined torsion and shear, the torsional cracking moment decreases with applied shear, which leads to a reduction in torsional reinforcement required to prevent brittle failure immediately after cracking. When subjected to pure torsion, reinforced concrete beam specimens with less than 1 percent tor"
+      },
+      {
+        "page": 512,
+        "snippet": "v + 2At)/s \u2265 0.2 w c yt bf f\u2032 (Av + 2At)/s \u2265 3.5 w yt b f (Av + 2At)/s \u2265 0.75 w c yt bf f\u2032 (Av + 2At)/s \u2265 50 w yt b f 9.6.4.3(a) and (b) A l,min \u2264 0.42 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 0.42 0.175cp ytw h y yt y c Af b pff f f \uf8eb\uf8f6 \u2212 \uf8ec\uf8f7\uf8ed\uf8f8 \u2032 Al,min \u2264 1.33 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 1.33 25cp ytw h y yt y c Af b pf f ff \uf8eb\uf8f6 \u2212 \uf8ec\uf8f7 \u2032 \uf8ed\uf8f8 Al,min \u2264 5 cp ytt h y c y Af A pf sf f \uf8eb\uf8f6\u2212 \uf8ec\uf8f7\uf8ed\uf8f8 \u2032 Al,min \u2264 5"
+      }
+    ],
+    "9.7.6.2": [
+      {
+        "page": 93,
+        "snippet": "ear reinforcement 7.7.5.1 If shear reinforcement is required, transverse rein- forcement shall be detailed according to 9.7.6.2. 7.7.6 Shrinkage and temperature reinforcement 7.7.6.1 Shrinkage and temperature reinforcement in accor- dance with 7.6.4 shall be placed perpendicular to flexural reinforcement. 7.7.6.2 Nonprestressed reinforcement 7.7.6.2.1 Spacing of deformed shrinkage and temperature reinforcement shall not exceed the les"
+      },
+      {
+        "page": 141,
+        "snippet": "used for this purpose is the smaller of 1.5h or 1.2 m. If applicable, the shear reinforcement provisions of 9.6.3 and 9.7.6.2.2 will require closer stirrup spacings. For repeated loading of beams, the possibility of inclined diagonal tension cracks forming at stresses appreciably smaller than under static loading should be taken into account in design. In these instances, use of at least the minimum shear reinforcement expressed"
+      },
+      {
+        "page": 148,
+        "snippet": "restrictive requirements shall apply. 9.7.6.1.2 Details of transverse reinforcement shall be in accordance with 25.7. 9.7.6.2 Shear 9.7.6.2.1 If required, shear reinforcement shall be provided using stirrups, hoops, or longitudinal bent bars. 9.7.6.2.2 Maximum spacing of shear reinforcement shall be in accordance with Table 9.7.6.2.2. Table 9.7 .6.2.2\u2014Maximum spacing of shear reinforcement Vs Maximum s, mm Nonprestressed beam Pre"
+      }
+    ],
+    "22.5.5.1": [
+      {
+        "page": 89,
+        "snippet": "ngth concrete or concrete having a small coarse aggregate size, may fail at shears less than V c calculated from Eq. (22.5.5.1). One-way slabs subjected to concen- trated loads are more likely to exhibit this vulnerability. Results of tests on precast, prestressed hollow-core units (Becker and Buettner 1985; Anderson 1978) with h \u2264 315 mm have shown shear strengths greater than those calculated by Eq. (22.5.8.3.1a) and Eq. (22.5.8"
+      },
+      {
+        "page": 356,
+        "snippet": "22.5.5 Vc for nonprestressed members without axial force 22.5.5.1 For nonprestressed members without axial force, Vc shall be calculated by: 0.17=\u03bb \u2032c cwV fbd (22.5.5.1) unless a more detailed calculation is made in accordance with Table 22.5.5.1. Table 22.5.5.1\u2014Detailed method for calculating V c Vc Least of (a), (b), and (c): 0.16 17\uf8eb\uf8f6 \u03bb +\u03c1 \u2032\uf8ec\uf8f7\uf8ed\uf8f8 u cw w u Vdf bdM [1]"
+      },
+      {
+        "page": 357,
+        "snippet": "), Vc shall be calculated in accordance with Table 22.5.8.2, but need not be less than the value calcu - lated by Eq. (22.5.5.1). Alternatively, it shall be permitted to calculate V c in accordance with 22.5.8.3. Table 22.5.8.2\u2014Approximate method for calculating V c Vc Least of (a), (b), and (c): 0.05 4.8\uf8eb\uf8f6 \u03bb+ \u2032\uf8ec\uf8f7\uf8ed\uf8f8 up cw u Vdf bdM [1] (a) (0.05 4.8)\u03bb+ \u2032cwf bd (b) 0.42\u03bb \u2032cwfbd (c) [1]Mu occurs simultaneously with Vu at the sectio"
+      }
+    ],
+    "22.7.4": [
+      {
+        "page": 374,
+        "snippet": "is section shall apply to members if Tu \u2265 \u03d5Tth, where \u03d5 is given in Chapter 21 and threshold torsion T th is given in 22.7.4. If Tu < \u03d5Tth, it shall be permitted to neglect torsional effects. 22.7.1.2 Nominal torsional strength shall be calculated in accordance with 22.7.6. 22.7.1.3 For calculation of Tth and Tcr, \u03bb shall be in accor- dance with 19.2.4. 22.7.2 Limiting material strengths 22.7.2.1 The value of \u2032fc used to calculate"
+      },
+      {
+        "page": 376,
+        "snippet": "22.7.4 Threshold torsion 22.7.4.1 Threshold torsion Tth shall be calculated in accor- dance with Table 22.7.4.1(a) for solid cross sections and Table 22.7.4.1(b) for hollow cross sections, where Nu is positive for compression and negative for tension. Table 22.7 .4.1(a)\u2014Threshold torsion for solid cross sections Typ"
+      },
+      {
+        "page": 377,
+        "snippet": "width of the torsional cracks. The replacement of A cp with A g, as in the calculation of T th for hollow sections in 22.7.4.1, is not applied here. Thus, the torsional moment after redistribution is larger and, hence, more conservative. R22.7.6 Torsional strength\u2014The torsional design strength \u03d5T n must equal or exceed the torsional moment Tu due to factored loads. In the calculation of Tn, all the torsion is assumed to be resist"
+      }
+    ],
+    "22.7.6": [
+      {
+        "page": 374,
+        "snippet": "be permitted to neglect torsional effects. 22.7.1.2 Nominal torsional strength shall be calculated in accordance with 22.7.6. 22.7.1.3 For calculation of Tth and Tcr, \u03bb shall be in accor- dance with 19.2.4. 22.7.2 Limiting material strengths 22.7.2.1 The value of \u2032fc used to calculate Tth and Tcr shall not exceed 8.3 MPa. 22.7.2.2 The values of fy and fyt for longitudinal and trans- verse torsional reinforcement shall not exceed th"
+      },
+      {
+        "page": 377,
+        "snippet": "c Aff p f (b) Nonprestressed member subjected to axial force 2 0.33 1 0.33 \uf8eb\uf8f6 \u03bb+ \u2032\uf8ec\uf8f7 \u03bb \u2032\uf8ed\uf8f8 cp u c cp gc A Nf p Af (c) 22.7.6 Torsional strength 22.7.6.1 For nonprestressed and prestressed members, Tn shall be the lesser of (a) and (b): (a) 2 cot o t yt n AAfT s=\u03b8 (22.7.6.1a) (b) 2 cot oy n h AAfT p=\u03b8 l (22.7.6.1b) where Ao shall be determined by analysis, \u03b8 shall not be taken less than 30 degrees nor greater than 60 degrees; At"
+      },
+      {
+        "page": 378,
+        "snippet": "22.7.6.1.1 In Eq. (22.7.6.1a) and (22.7.6.1b), it shall be permitted to take Ao equal to 0.85Aoh. 22.7.6.1.2 In Eq. (22.7.6.1a) and (22.7.6.1b), it shall be permitted to take \u03b8 equal to (a) or (b): of Ni can be assumed to be resisted by each of the top and bottom chords as shown. Longitudinal reinforcement with a s"
+      }
+    ],
+    "22.7.7": [
+      {
+        "page": 379,
+        "snippet": "embers with Apsfse < 0.4(Aps fpu + As fy) (b) 37.5 degrees for prestressed members with Apsfse \u2265 0.4(Aps fpu + As fy) 22.7.7 Cross-sectional limits 22.7.7.1 Cross-sectional dimensions shall be selected such that (a) or (b) is satisfied: (a) For solid sections 22 2 0.661.7 \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 + \u2032\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8\uf8ed\uf8f8 u uh c c ww oh V Tp V fbd bdA (22.7.7.1a) (b) For hollow sections 2 0.661.7 \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6 + \u2264\u03c6 + \u2032\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8 \uf8ed\uf8f8 u uh c c ww oh V Tp"
+      },
+      {
+        "page": 380,
+        "snippet": "ment or reinforcing bars at the bottom of the section and had stirrups that enclosed the longitudinal reinforcement. R22.7.7.1.2 Generally, the maximum torsional stress will be on the wall where the torsional and shearing stresses are additive (Point A in Fig. R22.7.7.1(a)). If the top or bottom flanges are thinner than the vertical webs, it may be neces- sary to evaluate Eq. (22.7.7.1b) at Points B and C in Fig. R22.7.7.1(a). At"
+      },
+      {
+        "page": 517,
+        "snippet": "+\uf8ec\uf8f7\u2032 \u03bb \u2032\uf8ed\uf8f8 Tcr = \u03bb 2 1 cp u cp g c c A N p A f f \uf8eb\uf8f6 +\uf8f7\uf8f8 \u2032 \u03bb \u2032\uf8ec \uf8ed Tcr = 4\u03bb 2 1 4 cp u cp c cg A fp A f N\uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8ed\uf8f8 \u2032 \u2032 22.7.7.1a 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7\uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 0.66c c w fV bd \uf8eb + \u2032\uf8f6 \uf8ec\uf8f7 \uf8ed\uf8f8 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 2c c w fV bd \uf8eb \u2032\uf8f6+\uf8ec\uf8f7\uf8ed\uf8f8 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 8c c w fV bd \uf8eb \u2032\uf8f6+\uf8ec\uf8f7\uf8ed\uf8f8 22.7.7.1b 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 0.66c c w fV bd \uf8eb + \u2032\uf8f6 \uf8ec"
+      }
+    ],
+    "22.7.7.1": [
+      {
+        "page": 379,
+        "snippet": "fpu + As fy) (b) 37.5 degrees for prestressed members with Apsfse \u2265 0.4(Aps fpu + As fy) 22.7.7 Cross-sectional limits 22.7.7.1 Cross-sectional dimensions shall be selected such that (a) or (b) is satisfied: (a) For solid sections 22 2 0.661.7 \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 + \u2032\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8\uf8ed\uf8f8 u uh c c ww oh V Tp V fbd bdA (22.7.7.1a) (b) For hollow sections 2 0.661.7 \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6 + \u2264\u03c6 + \u2032\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8 \uf8ed\uf8f8 u uh c c ww oh V Tp V fbd bdA (22.7.7.1b) 22.7.7"
+      },
+      {
+        "page": 380,
+        "snippet": "ment or reinforcing bars at the bottom of the section and had stirrups that enclosed the longitudinal reinforcement. R22.7.7.1.2 Generally, the maximum torsional stress will be on the wall where the torsional and shearing stresses are additive (Point A in Fig. R22.7.7.1(a)). If the top or bottom flanges are thinner than the vertical webs, it may be neces- sary to evaluate Eq. (22.7.7.1b) at Points B and C in Fig. R22.7.7.1(a). At"
+      },
+      {
+        "page": 517,
+        "snippet": "+\uf8ec\uf8f7\u2032 \u03bb \u2032\uf8ed\uf8f8 Tcr = \u03bb 2 1 cp u cp g c c A N p A f f \uf8eb\uf8f6 +\uf8f7\uf8f8 \u2032 \u03bb \u2032\uf8ec \uf8ed Tcr = 4\u03bb 2 1 4 cp u cp c cg A fp A f N\uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8ed\uf8f8 \u2032 \u2032 22.7.7.1a 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7\uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 0.66c c w fV bd \uf8eb + \u2032\uf8f6 \uf8ec\uf8f7 \uf8ed\uf8f8 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 2c c w fV bd \uf8eb \u2032\uf8f6+\uf8ec\uf8f7\uf8ed\uf8f8 22 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 8c c w fV bd \uf8eb \u2032\uf8f6+\uf8ec\uf8f7\uf8ed\uf8f8 22.7.7.1b 21.7 u uh w oh V Tp bd A \uf8eb\uf8f6\uf8eb\uf8f6 + \uf8ec\uf8f7\uf8ec\uf8f7 \uf8ed\uf8f8 \uf8ed\uf8f8 \u2264 \u03d5 0.66c c w fV bd \uf8eb + \u2032\uf8f6 \uf8ec"
+      }
+    ],
+    "25.7.1.2": [
+      {
+        "page": 436,
+        "snippet": "d at both ends. Where used as shear reinforcement, stirrups shall extend a distance d from extreme compression fiber. 25.7.1.2 Between anchored ends, each bend in the contin- uous portion of a single or multiple U-stirrup and each bend in a closed stirrup shall enclose a longitudinal bar or strand. 25.7.1.3 Anchorage of deformed bar and wire shall be in accordance with (a), (b), or (c): (a) For No. 16 bar and MD200 wire, and smaller"
+      }
+    ]
+  },
+  "19": {
+    "24.2.3": [
+      {
+        "page": 457,
+        "snippet": "o be damaged by large deflections, and for prestressed flexural members, deflections are required to be calculated by 24.2.3 through 24.2.5. Calculated deflec - tions are limited to the values in Table 24.2.2. American Concrete Institute \u2013 Copyrighted \u00a9 Material \u2013 www.concrete.org PART 7: STRENGTH & SERVICEABILITY 455 CODE COMMENTARY 24 Serviceability CHAPTER 24\u2014SERVICEABILITY No further reproduction or distribution is permitted."
+      },
+      {
+        "page": 458,
+        "snippet": "ed. In making this correction, use may be made of the curve in Fig. R24.2.4.1 for members of usual sizes and shapes. R24.2.3 Calculation of immediate deflections R24.2.3.1 For calculation of immediate deflections of uncracked prismatic members, the usual methods or formulas for elastic deflections may be used with a constant value of EcIg along the length of the member. However, if the member is expected to crack at one or more se"
+      },
+      {
+        "page": 459,
+        "snippet": "24.2.3.4 Modulus of elasticity, Ec, shall be permitted to be calculated in accordance with 19.2.2. 24.2.3.5 For nonprestressed members, unless obtained by a more comprehensive analysis, effective moment of inertia, Ie, shall be calculated in accordance with Table 24.2.3.5 using: rg cr t fI M y= (24.2.3.5) Table 2"
+      }
+    ],
+    "24.2.4": [
+      {
+        "page": 458,
+        "snippet": "ent of the nonstruc - tural elements may be deducted. In making this correction, use may be made of the curve in Fig. R24.2.4.1 for members of usual sizes and shapes. R24.2.3 Calculation of immediate deflections R24.2.3.1 For calculation of immediate deflections of uncracked prismatic members, the usual methods or formulas for elastic deflections may be used with a constant value of EcIg along the length of the member. However, if"
+      },
+      {
+        "page": 460,
+        "snippet": "24.2.4 Calculation of time-dependent deflections 24.2.4.1 Nonprestressed members 24.2.4.1.1 Unless obtained from a more comprehensive analysis, additional time-dependent deflection resulting from creep and shrinkage of flexural members shall be calculated as the product of the immediate deflection caused by sustain"
+      },
+      {
+        "page": 461,
+        "snippet": "24.2.4.2 Prestressed members 24.2.4.2.1 Additional time-dependent deflection of prestressed concrete members shall be calculated consid - ering stresses in concrete and reinforcement under sustained load, and the effects of creep and shrinkage of concrete and relaxation of prestressed reinforcement. 24.2.5 Calculati"
+      }
+    ],
+    "24.2.3.5": [
+      {
+        "page": 458,
+        "snippet": "linear elastic behavior can be assumed. For immediate deflections, the values of Ec and Ie specified in 24.2.3.4 and 24.2.3.5, respectively, may be used (ACI 209R). However, other procedures and other values of the stiffness EcIe may be used if they result in predictions of deflection in reasonable agreement with the results of comprehensive tests. 24.2.2 Deflections calculated in accordance with 24.2.3 through 24.2.5 shall not"
+      },
+      {
+        "page": 459,
+        "snippet": "24.2.3.4 Modulus of elasticity, Ec, shall be permitted to be calculated in accordance with 19.2.2. 24.2.3.5 For nonprestressed members, unless obtained by a more comprehensive analysis, effective moment of inertia, Ie, shall be calculated in accordance with Table 24.2.3.5 using: rg cr t fI M y= (24.2.3.5) Table 24.2.3.5\u2014Effective moment of inertia, Ie Service moment Effective moment of inertia, Ie, mm4 Ma \u2264 (2/"
+      },
+      {
+        "page": 622,
+        "snippet": "Modulus of rupture, 19.2.3 Moment magnification, 6.6.4 Moment of inertia, effective, 24.2.3.5 Moment redistribution, 6.6.5 Noncomposite steel decks, 1.4.5 Nonprestressed reinforcement - design properties, 20.2.2 - material properties, 20.2.1 Nonsway frame, 6.6.4.5 Notation, 2.2 Offset bent longitudinal reinforcement, 10.7.4, 10.7.6.4 One-way joist systems, 9.8 One-way shallow foundations, 13.3.2 One-wa"
+      }
+    ],
+    "9.6.1.2": [
+      {
+        "page": 137,
+        "snippet": "ural reinforcement, As,min, shall be provided at every section where tension reinforce - ment is required by analysis. 9.6.1.2 As,min shall be the larger of (a) and (b), except as provided in 9.6.1.3. For a statically determinate beam with a flange in tension, the value of bw shall be the smaller of bf and 2bw. The value of fy shall be limited to a maximum of 550 MPa. (a) 0.25 c w y f bdf \u2032 allowing a reduction in the longitudinal"
+      },
+      {
+        "page": 138,
+        "snippet": "y bdf 9.6.1.3 If As provided at every section is at least one-third greater than As required by analysis, 9.6.1.1 and 9.6.1.2 need not be satisfied. 9.6.2 Minimum flexural reinforcement in prestressed beams 9.6.2.1 For beams with bonded prestressed reinforcement, total quantity of As and Aps shall be adequate to develop a factored load at least 1.2 times the cracking load calculated on the basis of fr defined in 19.2.3. 9.6.2.2 Fo"
+      },
+      {
+        "page": 214,
+        "snippet": "am depth h beyond the joint faces (c) Transverse beams contain at least two continuous top and bottom bars satisfying 9.6.1.2 and No. 10 or larger stirrups satisfying 9.6.3.4 and 9.7.6.2.2 15.2.9 For slab-column connections transferring moment, strength and detailing requirements shall be in accordance with applicable provisions in Chapter 8 and Sections 15.3.2 and 22.6. 15.3\u2014Detailing of joints 15.3.1 Beam-column joint transverse"
+      }
+    ],
+    "9.6.3": [
+      {
+        "page": 95,
+        "snippet": "ear reinforcement The basis for minimum shear reinforcement for one-way slabs is the same as that for beams. Refer to R9.6.3 for addi- tional information. R7.6.3.1 Solid slabs and footings have less stringent minimum shear reinforcement requirements than beams because there is a possibility of load sharing between weak and strong areas. However, research (Angelakos et al. 2001; Lubell et al. 2004; Brown et al. 2006) has shown that"
+      },
+      {
+        "page": 138,
+        "snippet": "is the area of that part of the cross section between the flexural tension face and the centroid of the gross section. 9.6.3 Minimum shear reinforcement 9.6.3.1 For nonprestressed beams, minimum area of shear reinforcement, Av,min, shall be provided in all regions where Vu > 0.083\u03d5\u03bb \u2032cf bwd except for the cases in Table 9.6.3.1. For these cases, at least Av,min shall be provided where Vu > \u03d5Vc. Table 9.6.3.1\u2014Cases where Av,min is no"
+      },
+      {
+        "page": 139,
+        "snippet": "stirrups used for this purpose is the smaller of 1.5h or 1.2 m. If applicable, the shear reinforcement provisions of 9.6.3 and 9.7.6.2.2 will require closer stirrup spacings. For repeated loading of beams, the possibility of inclined diagonal tension cracks forming at stresses appreciably smaller than under static loading should be taken into account in design. In these instances, use of at least the minimum shear reinforcement"
+      }
+    ],
+    "9.6.4.1": [
+      {
+        "page": 140,
+        "snippet": "Greater of: 0.062 w c yt bf f\u2032 (c) 0.35 w yt b f (d) 80 ps pu yt w Af d fd b (e) 9.6.4 Minimum torsional reinforcement 9.6.4.1 A minimum area of torsional reinforcement shall be provided in all regions where Tu \u2265 \u03d5Tth in accordance with 22.7. 9.6.4.2 If torsional reinforcement is required, minimum transverse reinforcement (Av + 2At)min/s shall be the greater of (a) and (b): (a) 0.062 w c yt bf f\u2032 (b) 0.35 w yt b f 9.6.4.3 If torsio"
+      }
+    ],
+    "9.6.4.2": [
+      {
+        "page": 140,
+        "snippet": "develop ductile behavior. Expression (e) is discussed in Olesen et al. (1967). R9.6.4 Minimum torsional reinforcement R9.6.4.2 The differences in the definitions of Av and At should be noted: Av is the area of two legs of a closed stirrup, whereas At is the area of only one leg of a closed stirrup. If a stirrup group has more than two legs, only the legs adjacent to the sides of the beam are considered, as discussed in R9.5.4.3. Te"
+      },
+      {
+        "page": 405,
+        "snippet": "tressed concrete beams and concrete joist construction having minimum web reinforcement in accordance with 9.6.3.4 or 9.6.4.2. 22.5.3.3 The values of fy and fyt used to calculate Vs shall not exceed the limits in 20.2.2.4. and Jirsa 1984 ). Considering shear along each centroidal axis independently can be unconservative. Thus, linear inter- action accounts for biaxial shear. R22.5.2 Geometric assumptions R22.5.2.1 Although the value"
+      },
+      {
+        "page": 588,
+        "snippet": "in \u2265 0.35 w yt bs f Av,min \u2265 0.2 w c yt bsf f\u2032 Av,min \u2265 3.5 w yt bs f Av,min \u2265 0.75 w c yt bsf f\u2032 Av,min \u2265 50 w yt bs f 9.6.4.2(a) and (b) (Av + 2At)/s \u2265 0.062 w c yt bf f\u2032 (Av + 2At)/s \u2265 0.35 w yt b f (Av + 2At)/s \u2265 0.2 w c yt bf f\u2032 (Av + 2At)/s \u2265 3.5 w yt b f (Av + 2At)/s \u2265 0.75 w c yt bf f\u2032 (Av + 2At)/s \u2265 50 w yt b f 9.6.4.3(a) and (b) Al,min \u2264 0.42 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 0.42 0.175cp ytw h y yt y c Af"
+      }
+    ],
+    "9.6.4.3": [
+      {
+        "page": 140,
+        "snippet": "a of transverse closed stirrups has been made consistent with calculations required for minimum shear reinforcement. R9.6.4.3 Under combined torsion and shear, the torsional cracking moment decreases with applied shear, which leads to a reduction in torsional reinforcement required to prevent brittle failure immediately after cracking. When subjected to pure torsion, reinforced concrete beam specimens with less than 1 percent tor"
+      },
+      {
+        "page": 588,
+        "snippet": "(Av + 2At)/s \u2265 0.2 w c yt bf f\u2032 (Av + 2At)/s \u2265 3.5 w yt b f (Av + 2At)/s \u2265 0.75 w c yt bf f\u2032 (Av + 2At)/s \u2265 50 w yt b f 9.6.4.3(a) and (b) Al,min \u2264 0.42 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 0.42 0.175cp ytw h y yt y c Af b pff f f \uf8eb\uf8f6 \u2212 \uf8ec\uf8f7\uf8ed\uf8f8 \u2032 Al,min \u2264 1.33 cp ytt h c yy Af A pfs f f \uf8eb\uf8f6 \uf8ec\uf8f7 \uf8f8 \u2032 \u2212 \uf8ed Al,min \u2264 1.33 1.75cp ytw h y c yt y Af b pff f f \uf8eb\uf8f6 \u2212 \uf8ec\uf8f7\uf8ed\uf8f8 \u2032 Al,min \u2264 5 cp ytt h y c y Af A pf sf f \uf8eb\uf8f6\u2212 \uf8ec\uf8f7\uf8ed\uf8f8 \u2032 Al,min \u2264 5"
+      }
+    ],
+    "9.7.6.2": [
+      {
+        "page": 99,
+        "snippet": "ear reinforcement 7.7.5.1 If shear reinforcement is required, transverse rein- forcement shall be detailed according to 9.7.6.2. 7.7.6 Shrinkage and temperature reinforcement 7.7.6.1 Shrinkage and temperature reinforcement in accor- dance with 7.6.4 shall be placed perpendicular to flexural reinforcement. 7.7.6.2 Nonprestressed reinforcement 7.7.6.2.1 Spacing of deformed shrinkage and temperature reinforcement shall not exceed the les"
+      },
+      {
+        "page": 139,
+        "snippet": "used for this purpose is the smaller of 1.5h or 1.2 m. If applicable, the shear reinforcement provisions of 9.6.3 and 9.7.6.2.2 will require closer stirrup spacings. For repeated loading of beams, the possibility of inclined diagonal tension cracks forming at stresses appreciably smaller than under static loading should be taken into account in design. In these instances, use of at least the minimum shear reinforcement expressed"
+      },
+      {
+        "page": 148,
+        "snippet": "ks or horizontal U-shaped bars lapped with the longitudinal torsional reinforcement. R9.7.6 Transverse reinforcement R9.7.6.2 Shear R9.7.6.2.1 If a reinforced concrete beam is cast mono - lithically with a supporting beam and intersects one or both side faces of a supporting beam, the soffit of the supporting beam may be subject to premature failure unless additional transverse reinforcement, commonly referred to as hanger reinfor"
+      }
+    ],
+    "22.5.5.1": [
+      {
+        "page": 95,
+        "snippet": "ength concrete or concrete having a small coarse aggregate size, may fail at shears less than Vc calculated from Eq. (22.5.5.1). One-way slabs subjected to concen - trated loads are more likely to exhibit this vulnerability. Results of tests on precast, prestressed hollow-core units (Becker and Buettner 1985 ; Anderson 1978) with h \u2264 315 mm have shown shear strengths greater than those calcu - lated by Eq. (22.5.6.3.1a) and Eq. (22."
+      },
+      {
+        "page": 113,
+        "snippet": "here bslab is the width specified in 8.4.2.2.3, \u03b1 s is given in 22.6.5.3, \u03d5 is the value for shear, and \u03bbs is given in 22.5.5.1.3. American Concrete Institute \u2013 Copyrighted \u00a9 Material \u2013 www.concrete.org PART 3: MEMBERS 111 CODE COMMENTARY 8 Two-way Slabs No further reproduction or distribution is permitted."
+      },
+      {
+        "page": 114,
+        "snippet": "Commentary on size effect factor is provided in R22.5.5.1 and R22.6.5.2. R8.6.2 Minimum flexural reinforcement in prestressed slabs R8.6.2.1 The minimum average effective prestress of 0.9 MPa was used in two-way test panels in the early 1970s to address punching shear concerns of lightly reinforced slabs. For this reason, the minimum effective prestress is requir"
+      }
+    ],
+    "22.7.4": [
+      {
+        "page": 423,
+        "snippet": "his section shall apply to members if Tu \u2265 \u03d5Tth, where \u03d5 is given in Chapter 21 and threshold torsion Tth is given in 22.7.4. If Tu < \u03d5Tth, it shall be permitted to neglect torsional effects. 22.7.1.2 Nominal torsional strength shall be calculated in accordance with 22.7.6. 22.7.1.3 For calculation of Tth and Tcr, \u03bb shall be in accor- dance with 19.2.4. 22.7.2 Limiting material strengths 22.7.2.1 The value of \u2032cf used to calculate"
+      },
+      {
+        "page": 425,
+        "snippet": "edistribution is possible Fig. R22.7.3b\u2014Compatibility torsion, the design torsional moment may be reduced (22.7.3.2). R22.7.4 Threshold torsion The threshold torsion is defined as one-fourth the cracking torsional moment Tcr. For sections of solid members, the interaction between the cracking torsional moment and the inclined cracking shear is approximately circular or ellip - tical. For such a relationship, a threshold torsional mo"
+      },
+      {
+        "page": 427,
+        "snippet": "he width of the torsional cracks. The replacement of Acp with Ag, as in the calculation of Tth for hollow sections in 22.7.4.1, is not applied here. Thus, the torsional moment after redistribution is larger and, hence, more conservative. R22.7.6 Torsional strength The torsional design strength \u03d5Tn must equal or exceed the torsional moment Tu due to factored loads. In the calculation of Tn, all the torsion is assumed to be resisted"
+      }
+    ],
+    "22.7.6": [
+      {
+        "page": 423,
+        "snippet": "be permitted to neglect torsional effects. 22.7.1.2 Nominal torsional strength shall be calculated in accordance with 22.7.6. 22.7.1.3 For calculation of Tth and Tcr, \u03bb shall be in accor- dance with 19.2.4. 22.7.2 Limiting material strengths 22.7.2.1 The value of \u2032cf used to calculate Tth and Tcr shall not exceed 8.3 MPa. 22.7.2.2 The values of fy and fyt for longitudinal and trans- verse torsional reinforcement shall not exceed the"
+      },
+      {
+        "page": 427,
+        "snippet": "7.4.1, is not applied here. Thus, the torsional moment after redistribution is larger and, hence, more conservative. R22.7.6 Torsional strength The torsional design strength \u03d5Tn must equal or exceed the torsional moment Tu due to factored loads. In the calculation of Tn, all the torsion is assumed to be resisted by stirrups and longitudinal reinforcement, neglecting any concrete contri - bution to torsional strength. At the same ti"
+      },
+      {
+        "page": 428,
+        "snippet": "V1 V2 V4 V3 x0 y0 T Stirrups Cracks Longitudinal bar Concrete compression diagonals \u03b8 Fig. R22.7.6.1a\u2014Space truss analogy. Ni 2 Ni 2 Vi \u03b8 Vi Ni Di \u03b8 Fig. R22.7.6.1b\u2014Resolution of shear force Vi into diagonal compression force Di and axial tension force Ni in one wall of tube. R22.7.6.1.1 The area Aoh is shown in Fig. R22.7.6.1.1 for various cross sections. In I-, T-, L-shaped, or circular sections, Aoh is"
+      }
+    ],
+    "22.7.7": [
+      {
+        "page": 429,
+        "snippet": ".6.1a) decreases. At the same time, the amount of longitudinal rein- forcement required by Eq. (22.7.6.1b) increases. R22.7.7 Cross-sectional limits R22.7.7.1 The size of a cross section is limited for two reasons: first, to reduce excessive cracking, and second, to minimize the potential for crushing of the surface concrete due to inclined compressive stresses due to shear and torsion. In Eq. (22.7.7.1a) and (22.7.7.1b), the two t"
+      },
+      {
+        "page": 430,
+        "snippet": "(b) Solid section Shear stressesTorsional stresses (a) Hollow section Shear stresses C BB C AA Torsional stresses Fig. R22.7.7.1\u2014Addition of torsional and shear stresses. R22.7.7.1.1 Although the value of d may vary along the span of a prestressed beam, studies (MacGregor and Hanson 1969) have shown that, for prestressed concrete members, d need not be taken less than 0.8h. The beams considered had some straight prestressed reinforc"
+      },
+      {
+        "page": 594,
+        "snippet": "\uf8ec \u03bb \u2032\uf8f7\uf8f8 Tcr = \u03bb 2 1 1.1 cp u cp c cg A N p A f f \uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8f8 \u2032\uf8ed \u2032 Tcr = 4\u03bb 2 1 4 cp u cp c cg A fp A f N\uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8ed\uf8f8 \u2032 \u2032 22.7.7.1a 22 2 0.661.7 u uh c woh c w V Tp V bd bdA f\uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed\uf8f8 \u2032 \uf8f8\uf8ed 22 2 21.7 u uh c ww oh c V Tp dA fV bd b \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed \u2032 \uf8f8 \uf8ed\uf8f8 \uf8ed\uf8f8 22 2 81.7 u uh c ww oh c V Tp dA fV bd b \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed \u2032 \uf8f8 \uf8ed\uf8f8 \uf8ed\uf8f8 22.7.7.1b 2 0.661.7 c u uh c ww oh V Tp V bd bdA f\uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6 + \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8"
+      }
+    ],
+    "22.7.7.1": [
+      {
+        "page": 429,
+        "snippet": "time, the amount of longitudinal rein- forcement required by Eq. (22.7.6.1b) increases. R22.7.7 Cross-sectional limits R22.7.7.1 The size of a cross section is limited for two reasons: first, to reduce excessive cracking, and second, to minimize the potential for crushing of the surface concrete due to inclined compressive stresses due to shear and torsion. In Eq. (22.7.7.1a) and (22.7.7.1b), the two terms on the left-hand side are"
+      },
+      {
+        "page": 430,
+        "snippet": "(b) Solid section Shear stressesTorsional stresses (a) Hollow section Shear stresses C BB C AA Torsional stresses Fig. R22.7.7.1\u2014Addition of torsional and shear stresses. R22.7.7.1.1 Although the value of d may vary along the span of a prestressed beam, studies (MacGregor and Hanson 1969) have shown that, for prestressed concrete members, d need not be taken less than 0.8h. The beams considered had some straight prestressed reinforc"
+      },
+      {
+        "page": 594,
+        "snippet": "\uf8ec \u03bb \u2032\uf8f7\uf8f8 Tcr = \u03bb 2 1 1.1 cp u cp c cg A N p A f f \uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8f8 \u2032\uf8ed \u2032 Tcr = 4\u03bb 2 1 4 cp u cp c cg A fp A f N\uf8eb\uf8f6 +\uf8ec\uf8f7 \u03bb\uf8ed\uf8f8 \u2032 \u2032 22.7.7.1a 22 2 0.661.7 u uh c woh c w V Tp V bd bdA f\uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed\uf8f8 \u2032 \uf8f8\uf8ed 22 2 21.7 u uh c ww oh c V Tp dA fV bd b \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed \u2032 \uf8f8 \uf8ed\uf8f8 \uf8ed\uf8f8 22 2 81.7 u uh c ww oh c V Tp dA fV bd b \uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6+ \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed \u2032 \uf8f8 \uf8ed\uf8f8 \uf8ed\uf8f8 22.7.7.1b 2 0.661.7 c u uh c ww oh V Tp V bd bdA f\uf8eb\uf8f6\uf8eb\uf8f6 \uf8eb \uf8f6 + \u2264\u03c6 +\uf8ec\uf8f7\uf8ec\uf8f7 \uf8ec \uf8f7\uf8ed\uf8f8 \uf8ed \uf8f8"
+      }
+    ],
+    "25.7.1.2": [
+      {
+        "page": 497,
+        "snippet": "ist. R25.7.1.4 The requirements for anchorage of welded wire reinforcement stirrups are illustrated in Fig. R25.7.1.4. 25.7.1.2 Between anchored ends, each bend in the contin- uous portion of a single or multiple U-stirrup and each bend in a closed stirrup shall enclose a longitudinal bar or strand. 25.7.1.3 Anchorage of deformed bar and wire shall be in accordance with (a), (b), or (c): (a) For No. 16 bar and MD200 wire, and smaller"
+      },
+      {
+        "page": 514,
+        "snippet": "require two bars for 25.9.4.4.6 (a) and two additional bars to provide anchorage for the hairpins in accordance with 25.7.1.2. The horizontal bars parallel to the edge required by 25.9.4.4.6(a) should be continuous where possible. The tests on which the recommendations of Breen et al. (1994) were based were limited to anchorage devices for 12.7 mm diameter, Grade 1860 strand, and unbonded tendons in normalweight concrete. For la"
+      },
+      {
+        "page": 515,
+        "snippet": "\u2265 150 mm extension (b) Section A-A for slabs with h > 200 mm (a) Plan view Bars to anchor hairpins in accordance with 25.7.1.2 No. 10 or larger hairpin with minimum inside bend diameter in accordance with Table 25.3.2 No. 10 or larger hairpin with minimum inside bend diameter in accordance with Table 25.3.2 (c) Section A-A for slabs with h \u2264 200 mm h - (top + bottom cover) h - (top + bottom cover) h \u2264 200 mm 3h/8 to h/2 3h/8 to"
+      }
+    ]
+  }
+}

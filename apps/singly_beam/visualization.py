@@ -365,8 +365,11 @@ def build_flexural_phi_chart_svg(theme: ThemePalette, state: PhiFlexureChartStat
     x_min = min(0.0, state.et, state.ety) - 0.0002
     x_max = max(max_curve_x, state.et, state.ety) + 0.0004
     x_span = max(x_max - x_min, 0.001)
-    y_min = 0.73
-    y_max = 0.92
+    curve_phi_values = [point[1] for point in curve_points]
+    y_min = min(curve_phi_values + [state.phi]) - 0.02
+    y_max = max(curve_phi_values + [state.phi]) + 0.02
+    y_min = max(0.0, min(y_min, 0.65))
+    y_max = min(1.0, max(y_max, 0.90))
     y_span = y_max - y_min
 
     width = 300.0
@@ -429,7 +432,9 @@ def build_flexural_phi_chart_svg(theme: ThemePalette, state: PhiFlexureChartStat
 
     y_tick_markup = []
     y_grid_markup = []
-    for y_tick in (0.75, 0.80, 0.85, 0.90):
+    for y_tick in (0.65, 0.70, 0.75, 0.80, 0.85, 0.90):
+        if y_tick < y_min - 1e-9 or y_tick > y_max + 1e-9:
+            continue
         tick_y = sy(y_tick)
         y_grid_markup.append(
             f"<line x1='{padding_left:.2f}' y1='{tick_y:.2f}' x2='{padding_left + plot_width:.2f}' y2='{tick_y:.2f}' "
