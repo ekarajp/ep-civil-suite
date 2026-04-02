@@ -1,0 +1,8 @@
+frozen=False
+base_dir=D:\Python\PythonProject\ep-civil-suite
+app_path=D:\Python\PythonProject\ep-civil-suite\main.py
+app_exists=True
+frozen=False
+base_dir=D:\Python\PythonProject\ep-civil-suite
+app_path=D:\Python\PythonProject\ep-civil-suite\main.py
+app_exists=True

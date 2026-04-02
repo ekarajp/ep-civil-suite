@@ -1,0 +1,15 @@
+Beam
+- ทำ คานยื่น
+- ทำ Export DXF
+- ทำ Section Designer Section หน้าตาแปลกๆ
+- Fiber Model
+
+Column
+- ทำแบบ SpColumn , CSiCol
+- ทำ Section Designer Section หน้าตาแปลกๆ
+- Fiber Model
+
+Connectiom
+- ทำ Connection ทั้ง force method และ FEM
+- Connection มาตรฐาน Key input ที่กำหนด
+- Connection แบบ Free Form

@@ -6,5 +6,12 @@ __pycache__/
 
 .streamlit/workspace_state.json
 
+reference_library/raw/*
+!reference_library/raw/.gitkeep
+reference_library/parsed/*
+!reference_library/parsed/.gitkeep
+reference_library/index/*
+!reference_library/index/.gitkeep
+
 Thumbs.db
 Desktop.ini
