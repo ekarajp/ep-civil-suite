@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from apps.singly_beam.calculation_report_full_page import render_full_report_layout
-from apps.singly_beam.calculation_report_page import _render_print_section, render_print_layout
-from apps.singly_beam.formulas import calculate_full_design_results
-from apps.singly_beam.models import BeamDesignInputSet, BeamType
-from apps.singly_beam.models import ProjectMetadata
-from apps.singly_beam.models import PositiveBendingInput, ReinforcementArrangementInput
-from apps.singly_beam.report_builder import (
+from apps.rc_beam.calculation_report_full_page import render_full_report_layout
+from apps.rc_beam.calculation_report_page import _render_print_section, render_print_layout
+from apps.rc_beam.formulas import calculate_full_design_results
+from apps.rc_beam.models import BeamDesignInputSet, BeamType
+from apps.rc_beam.models import ProjectMetadata
+from apps.rc_beam.models import PositiveBendingInput, ReinforcementArrangementInput
+from apps.rc_beam.report_builder import (
     ReportRow,
     build_full_report_overview_data,
     build_full_report_sections,

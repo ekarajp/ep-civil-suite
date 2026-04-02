@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import apps.singly_beam.workspace_page as workspace_page
-from apps.singly_beam.models import BeamType, CombinedShearTorsionResults
+import apps.rc_beam.workspace_page as workspace_page
+from apps.rc_beam.models import BeamBehaviorMode, BeamType, CombinedShearTorsionResults
 from core.theme import LIGHT_THEME
 from design.deflection import (
     AllowableDeflectionPreset,
@@ -129,6 +129,15 @@ def test_build_default_state_sets_continuous_negative_rebar_startup_defaults() -
     assert state["nb_tens_layer_2_group_a_diameter_option"] == "-"
     assert state["nb_comp_layer_3_group_b_count"] == 0
     assert state["deflection_ie_method"] == "Conservative / Worst Case"
+
+
+def test_build_default_state_sets_beam_behavior_defaults() -> None:
+    default_inputs = workspace_page.load_default_inputs()
+
+    state = workspace_page.build_default_state(default_inputs)
+
+    assert state["beam_behavior_mode"] == BeamBehaviorMode.AUTO.value
+    assert state["auto_beam_behavior_threshold_percent"] == 5.0
 
 
 def test_handle_beam_type_change_preserves_user_negative_rebar_inputs(monkeypatch) -> None:
@@ -302,6 +311,27 @@ def test_build_inputs_from_state_preserves_consider_deflection_checkbox(monkeypa
     inputs = workspace_page.build_inputs_from_state()
 
     assert inputs.consider_deflection is True
+
+
+def test_build_inputs_from_state_clamps_beam_behavior_threshold(monkeypatch) -> None:
+    default_inputs = workspace_page.load_default_inputs()
+    session_state = type("SessionState", (dict,), {"__getattr__": dict.__getitem__, "__setattr__": dict.__setitem__})()
+    session_state.update(workspace_page.build_default_state(default_inputs))
+    session_state["beam_behavior_mode"] = BeamBehaviorMode.AUTO.value
+    session_state["auto_beam_behavior_threshold_percent"] = 150.0
+    session_state["project_date_auto_value"] = "2026-03-29 12:11"
+
+    monkeypatch.setattr(workspace_page.st, "session_state", session_state)
+
+    inputs = workspace_page.build_inputs_from_state()
+
+    assert inputs.beam_behavior_mode == BeamBehaviorMode.AUTO
+    assert inputs.auto_beam_behavior_threshold_ratio == 1.0
+
+    session_state["auto_beam_behavior_threshold_percent"] = -20.0
+    inputs = workspace_page.build_inputs_from_state()
+
+    assert inputs.auto_beam_behavior_threshold_ratio == 0.0
 
 
 def test_build_default_state_uses_requested_deflection_defaults() -> None:

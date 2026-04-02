@@ -8,9 +8,9 @@ import streamlit as st
 from streamlit.runtime.scriptrunner_utils.script_run_context import get_script_run_ctx
 
 from apps.beam_fiber_model.placeholder import main as render_beam_fiber_model
-from apps.doubly_beam.placeholder import main as render_doubly_beam
 from apps.landing.landing_page import main as render_landing_page
-from apps.singly_beam.singly_beam_app import main as render_singly_beam
+from apps.rc_beam_app import main as render_rc_beam
+from apps.reference_library.reference_library_app import main as render_reference_library
 from core.navigation import HOME_VIEW, current_view
 
 
@@ -43,11 +43,11 @@ def main() -> None:
     if active_view == HOME_VIEW:
         render_landing_page()
         return
-    if active_view == "singly_beam":
-        render_singly_beam(show_home_button=True)
+    if active_view == "reference_library":
+        render_reference_library()
         return
-    if active_view == "doubly_beam":
-        render_doubly_beam()
+    if active_view == "rc_beam":
+        render_rc_beam(show_home_button=True)
         return
     if active_view == "beam_fiber_model":
         render_beam_fiber_model()
@@ -58,4 +58,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     run_app_entrypoint()
-

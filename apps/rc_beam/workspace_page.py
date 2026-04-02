@@ -35,6 +35,7 @@ from .formulas import (
     calculate_full_design_results,
 )
 from .models import (
+    BeamBehaviorMode,
     BeamDesignInputSet,
     BeamGeometryInput,
     BeamType,
@@ -139,6 +140,8 @@ def initialize_session_state(default_inputs: BeamDesignInputSet, *, force_restor
 def build_default_state(inputs: BeamDesignInputSet) -> dict[str, object]:
     state: dict[str, object] = {
         "beam_type": inputs.beam_type.value,
+        "beam_behavior_mode": inputs.beam_behavior_mode.value,
+        "auto_beam_behavior_threshold_percent": inputs.auto_beam_behavior_threshold_ratio * 100.0,
         "project_tag": inputs.metadata.tag,
         "project_name": inputs.metadata.project_name,
         "project_number": inputs.metadata.project_number,
@@ -260,6 +263,7 @@ def reset_material_property_settings() -> None:
     st.session_state.ec_mode = MaterialPropertyMode.DEFAULT.value
     st.session_state.es_mode = MaterialPropertyMode.DEFAULT.value
     st.session_state.fr_mode = MaterialPropertyMode.DEFAULT.value
+    st.session_state.auto_beam_behavior_threshold_percent = 5.0
     st.session_state.ec_manual_ksc = calculate_default_ec_ksc(concrete_strength)
     st.session_state.es_manual_ksc = calculate_default_es_ksc()
     st.session_state.fr_manual_ksc = calculate_default_fr_ksc(concrete_strength)
@@ -269,7 +273,7 @@ def render_header() -> None:
     default_inputs = load_default_inputs()
     header_left, header_right = st.columns([1.2, 1], gap="medium")
     with header_left:
-        st.markdown("<div class='hero-title'>Singly Reinforced Beam Analysis</div>", unsafe_allow_html=True)
+        st.markdown("<div class='hero-title'>Reinforced Concrete Beam Analysis</div>", unsafe_allow_html=True)
         st.markdown(
             "<div class='hero-subtitle'>Standalone reinforced concrete beam design with live visualization, compact reporting, and transparent review flags.</div>",
             unsafe_allow_html=True,
@@ -319,6 +323,25 @@ def render_input_workspace() -> None:
             help="Simple Beam hides negative-moment design. Continuous Beam shows both positive and negative design workflows.",
         )
         st.caption("Simple Beam = positive-moment workflow only. Continuous Beam = positive and negative moment design.")
+        behavior_label_col, behavior_help_col = st.columns([0.88, 0.12], gap="small")
+        with behavior_label_col:
+            st.markdown("<div class='input-field-label'>Beam Behavior</div>", unsafe_allow_html=True)
+        with behavior_help_col:
+            _render_info_button(
+                "Beam Behavior:\n"
+                "- Singly: Ignore compression steel contribution for flexural strength classification\n"
+                "- Auto: Classify as Singly or Doubly based on compression steel contribution ratio R\n"
+                "- Doubly: Always include compression steel contribution\n\n"
+                "These labels describe flexural behavior only; they are not module names.",
+                label="?",
+            )
+        st.radio(
+            "Beam Behavior",
+            options=[mode.value for mode in BeamBehaviorMode],
+            horizontal=True,
+            key="beam_behavior_mode",
+            label_visibility="collapsed",
+        )
         st.checkbox("Include Torsion Design", key="include_torsion_design", on_change=_handle_include_torsion_design_change)
         st.checkbox("Consider Deflection", key="consider_deflection", on_change=_handle_consider_deflection_change)
 
@@ -1189,9 +1212,11 @@ def _selected_deflection_code_for_info() -> DeflectionCodeVersion:
 def _deflection_code_heading_for_info() -> str:
     mapping = {
         DeflectionCodeVersion.ACI318_99: "ACI318-99 - Clause 9.5",
+        DeflectionCodeVersion.ACI318_08: "ACI318-08 - Clause 9.5",
         DeflectionCodeVersion.ACI318_11: "ACI318-11 - Clause 9.5",
         DeflectionCodeVersion.ACI318_14: "ACI318-14 - Chapter 24",
         DeflectionCodeVersion.ACI318_19: "ACI318-19 - Chapter 24",
+        DeflectionCodeVersion.ACI318_25: "ACI318-25 - Chapter 24",
     }
     return mapping[_selected_deflection_code_for_info()]
 
@@ -1215,9 +1240,11 @@ def _render_overall_deflection_diagram(results) -> None:
 def _deflection_long_term_clause_for_info() -> str:
     mapping = {
         DeflectionCodeVersion.ACI318_99: "ACI318-99 - Clause 9.5.2.5",
+        DeflectionCodeVersion.ACI318_08: "ACI318-08 - Clause 9.5.2.5",
         DeflectionCodeVersion.ACI318_11: "ACI318-11 - Clause 9.5.2.5",
         DeflectionCodeVersion.ACI318_14: "ACI318-14 - Clause 24.2.4",
         DeflectionCodeVersion.ACI318_19: "ACI318-19 - Clause 24.2.4",
+        DeflectionCodeVersion.ACI318_25: "ACI318-25 - Clause 24.2.4",
     }
     return mapping[_selected_deflection_code_for_info()]
 
@@ -1225,9 +1252,11 @@ def _deflection_long_term_clause_for_info() -> str:
 def _deflection_immediate_clause_for_info() -> str:
     mapping = {
         DeflectionCodeVersion.ACI318_99: "ACI318-99 - Clause 9.5.2 and Clause 9.5.2.3",
+        DeflectionCodeVersion.ACI318_08: "ACI318-08 - Clause 9.5.2 and Clause 9.5.2.3",
         DeflectionCodeVersion.ACI318_11: "ACI318-11 - Clause 9.5.2 and Clause 9.5.2.3",
         DeflectionCodeVersion.ACI318_14: "ACI318-14 - Clause 24.2.3 together with Clause 24.2.3.5",
         DeflectionCodeVersion.ACI318_19: "ACI318-19 - Clause 24.2.3 together with Table 24.2.3.5",
+        DeflectionCodeVersion.ACI318_25: "ACI318-25 - Clause 24.2.3 together with Table 24.2.3.5",
     }
     return mapping[_selected_deflection_code_for_info()]
 
@@ -1598,12 +1627,13 @@ def _render_shear_header_feedback(preview_results) -> None:
         unsafe_allow_html=True,
     )
     if shear.av_cm2 < shear.av_min_cm2:
-        if st.session_state.design_code == DesignCode.ACI318_19.value:
+        if st.session_state.design_code in {DesignCode.ACI318_19.value, DesignCode.ACI318_25.value}:
+            selected_code = DesignCode(st.session_state.design_code)
             vc_action = "Vc is reduced using this factor." if shear.size_effect_applied else "Vc is unchanged because the factor is 1.000."
             st.markdown(
                 "<div class='design-banner fail'>"
-                f"ACI 318-19 size effect check: A<sub>v</sub> &lt; A<sub>v,min</sub>, so &lambda;<sub>s</sub> = {format_ratio(shear.size_effect_factor, 3)}. "
-                f"{vc_action} {_format_aci_warning_reference_for_ui(_shear_min_clause_reference_for_ui(DesignCode.ACI318_19) + ' together with ACI 318-19 Table 22.5.5.1')}. "
+                f"{_design_code_label_for_ui(selected_code)} size effect check: A<sub>v</sub> &lt; A<sub>v,min</sub>, so &lambda;<sub>s</sub> = {format_ratio(shear.size_effect_factor, 3)}. "
+                f"{vc_action} {_format_aci_warning_reference_for_ui(_shear_min_clause_reference_for_ui(selected_code) + f' together with {_design_code_label_for_ui(selected_code)} Table 22.5.5.1')}. "
                 "This does not satisfy the minimum shear reinforcement requirement."
                 "</div>",
                 unsafe_allow_html=True,
@@ -1700,6 +1730,9 @@ def render_summary_panel(inputs: BeamDesignInputSet, results, palette) -> None:
 def render_key_metrics(inputs: BeamDesignInputSet, results, palette) -> None:
     st.markdown(capacity_ratio_legend_html(), unsafe_allow_html=True)
     positive_moment_metrics = [
+        ("Beam Behavior", results.positive_bending.beam_behavior_mode, _beam_behavior_summary_note(results.positive_bending)),
+        ("Auto Result", results.positive_bending.auto_result or "-", _beam_behavior_auto_note(results.positive_bending)),
+        ("R / Threshold", _beam_behavior_ratio_pair(results.positive_bending), "Contribution ratio / Auto threshold"),
         ("M<sub>u</sub> / &phi;M<sub>n</sub>", capacity_ratio_html(results.positive_bending.ratio), "Moment capacity ratio"),
         ("A<sub>s,req</sub>", format_number(results.positive_bending.as_required_cm2), "cm<sup>2</sup>"),
         ("A<sub>s,prov</sub>", format_number(results.positive_bending.as_provided_cm2), results.positive_bending.as_status),
@@ -1714,6 +1747,9 @@ def render_key_metrics(inputs: BeamDesignInputSet, results, palette) -> None:
     negative_moment_metrics: list[tuple[str, object, str]] = []
     if inputs.has_negative_design and results.negative_bending is not None:
         negative_moment_metrics = [
+            ("Beam Behavior", results.negative_bending.beam_behavior_mode, _beam_behavior_summary_note(results.negative_bending)),
+            ("Auto Result", results.negative_bending.auto_result or "-", _beam_behavior_auto_note(results.negative_bending)),
+            ("R / Threshold", _beam_behavior_ratio_pair(results.negative_bending), "Contribution ratio / Auto threshold"),
             ("M<sub>u</sub> / &phi;M<sub>n</sub>", capacity_ratio_html(results.negative_bending.ratio), "Moment capacity ratio"),
             ("A<sub>s,req</sub>", format_number(results.negative_bending.as_required_cm2), "cm<sup>2</sup>"),
             ("A<sub>s,prov</sub>", format_number(results.negative_bending.as_provided_cm2), results.negative_bending.as_status),
@@ -2117,6 +2153,10 @@ def build_inputs_from_state() -> BeamDesignInputSet:
     resolved_deflection_ie_method = _resolved_deflection_ie_method_from_state()
     return BeamDesignInputSet(
         beam_type=BeamType(st.session_state.beam_type),
+        beam_behavior_mode=BeamBehaviorMode(st.session_state.beam_behavior_mode),
+        auto_beam_behavior_threshold_ratio=_clamp_beam_behavior_threshold_ratio(
+            float(st.session_state.auto_beam_behavior_threshold_percent) / 100.0
+        ),
         consider_deflection=bool(st.session_state.consider_deflection),
         metadata=ProjectMetadata(
             design_code=DesignCode(st.session_state.design_code),
@@ -2266,6 +2306,29 @@ def _current_timestamp_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def _clamp_beam_behavior_threshold_ratio(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _beam_behavior_ratio_pair(results) -> str:
+    return (
+        f"{format_number(results.behavior_contribution_ratio_r * 100.0)}% / "
+        f"{format_number(results.behavior_threshold_r * 100.0)}%"
+    )
+
+
+def _beam_behavior_summary_note(results) -> str:
+    if results.beam_behavior_mode == BeamBehaviorMode.AUTO.value:
+        return f"Auto Result: {results.auto_result or results.effective_beam_behavior}"
+    return f"Effective: {results.effective_beam_behavior}"
+
+
+def _beam_behavior_auto_note(results) -> str:
+    if results.beam_behavior_mode != BeamBehaviorMode.AUTO.value:
+        return "Only used when Beam Behavior = Auto"
+    return f"Effective flexural classification: {results.effective_beam_behavior}"
+
+
 def _torsion_design_code_from_main_code(design_code: DesignCode) -> TorsionDesignCode:
     return TorsionDesignCode[design_code.name]
 
@@ -2374,13 +2437,13 @@ def _sync_layer_group_counts_from_selected_diameters(prefix: str, layer_index: i
 
 
 def _flexural_as_clause_reference_for_ui(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label_for_ui(design_code)} 10.5.1"
     return f"{_design_code_label_for_ui(design_code)} 9.6.1.2"
 
 
 def _shear_min_clause_reference_for_ui(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label_for_ui(design_code)} 11.4.6.3"
     return f"{_design_code_label_for_ui(design_code)} 9.6.3"
 
@@ -2389,10 +2452,12 @@ def _shear_spacing_clause_reference_for_ui(design_code: DesignCode, torsion_acti
     if torsion_active:
         if design_code == DesignCode.ACI318_99:
             return "ACI 318-99 11.4.5 together with 11.6.6.1"
+        if design_code == DesignCode.ACI318_08:
+            return "ACI 318-08 11.4.5 together with 11.5.6.1"
         if design_code == DesignCode.ACI318_11:
             return "ACI 318-11 11.4.5 together with 11.5.6.1"
         return f"{_design_code_label_for_ui(design_code)} 9.7.6.2 together with 9.7.6.3.3"
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label_for_ui(design_code)} 11.4.5"
     return f"{_design_code_label_for_ui(design_code)} 9.7.6.2"
 
@@ -2400,9 +2465,11 @@ def _shear_spacing_clause_reference_for_ui(design_code: DesignCode, torsion_acti
 def _design_code_label_for_ui(design_code: DesignCode) -> str:
     mapping = {
         DesignCode.ACI318_99: "ACI 318-99",
+        DesignCode.ACI318_08: "ACI 318-08",
         DesignCode.ACI318_11: "ACI 318-11",
         DesignCode.ACI318_14: "ACI 318-14",
         DesignCode.ACI318_19: "ACI 318-19",
+        DesignCode.ACI318_25: "ACI 318-25",
     }
     return mapping[design_code]
 
@@ -2439,9 +2506,11 @@ def _format_aci_warning_reference_for_ui(reference: str) -> str:
 def _torsion_spacing_clause_reference_for_ui(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.6.1",
+        "ACI 318-08": "ACI 318-08 11.5.6.1",
         "ACI 318-11": "ACI 318-11 11.5.6.1",
         "ACI 318-14": "ACI 318-14 9.7.6.3.3",
         "ACI 318-19": "ACI 318-19 9.7.6.3.3",
+        "ACI 318-25": "ACI 318-25 9.7.6.3.3",
     }
     return mapping.get(code_version, code_version)
 
@@ -2449,9 +2518,11 @@ def _torsion_spacing_clause_reference_for_ui(code_version: str) -> str:
 def _torsion_cross_section_clause_reference_for_ui(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.3.1",
+        "ACI 318-08": "ACI 318-08 11.5.3.1",
         "ACI 318-11": "ACI 318-11 11.5.3.1",
         "ACI 318-14": "ACI 318-14 22.7.7.1",
         "ACI 318-19": "ACI 318-19 22.7.7.1",
+        "ACI 318-25": "ACI 318-25 22.7.7.1",
     }
     return mapping.get(code_version, code_version)
 

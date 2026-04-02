@@ -1,7 +1,7 @@
 import pytest
 
-from apps.singly_beam.formulas import calculate_material_properties, calculate_positive_bending_design, calculate_shear_design
-from apps.singly_beam.models import (
+from apps.rc_beam.formulas import calculate_material_properties, calculate_positive_bending_design, calculate_shear_design
+from apps.rc_beam.models import (
     BeamDesignInputSet,
     BeamGeometryInput,
     MaterialPropertiesInput,

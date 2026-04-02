@@ -36,7 +36,7 @@ def main() -> None:
     with toolbar_left:
         render_print_button(palette)
     with toolbar_right:
-        st.markdown("<div class='hero-title'>Singly Reinforced Beam Analysis</div>", unsafe_allow_html=True)
+        st.markdown("<div class='hero-title'>Reinforced Concrete Beam Analysis</div>", unsafe_allow_html=True)
         st.markdown("<div class='hero-subtitle'>Summary Report</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -69,7 +69,7 @@ def render_print_button(palette) -> None:
               printWindow.document.write(`
                 <html>
                   <head>
-                    <title>Singly Reinforced Beam Analysis</title>
+                    <title>Reinforced Concrete Beam Analysis</title>
                     ${{styleTags}}
                     <style>
                       html, body {{
@@ -146,7 +146,7 @@ def render_print_layout(inputs, results, sections, palette) -> str:
             ("Tag", inputs.metadata.tag or "-"),
         ]
     )
-    project_line = inputs.metadata.project_name or inputs.metadata.tag or "Singly Reinforced Beam"
+    project_line = inputs.metadata.project_name or inputs.metadata.tag or "Reinforced Concrete Beam"
     meta_html = "".join(
         f"<span>{item}</span>"
         for item in [

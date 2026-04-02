@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from .singly_beam_app import main
+from .rc_beam_app import main
 
 __all__ = ["main"]
-

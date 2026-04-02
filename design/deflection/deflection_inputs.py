@@ -6,9 +6,11 @@ from enum import Enum
 
 class DeflectionCodeVersion(str, Enum):
     ACI318_99 = "ACI 318-99"
+    ACI318_08 = "ACI 318-08"
     ACI318_11 = "ACI 318-11"
     ACI318_14 = "ACI 318-14"
     ACI318_19 = "ACI 318-19"
+    ACI318_25 = "ACI 318-25"
 
 
 class DeflectionMemberType(str, Enum):

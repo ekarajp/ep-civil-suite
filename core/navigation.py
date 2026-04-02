@@ -20,18 +20,18 @@ class ToolDefinition:
 
 TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
-        key="singly_beam",
-        title="Singly Beam Analysis",
-        description="Reinforced concrete singly reinforced beam analysis and design.",
+        key="reference_library",
+        title="Reference Library",
+        description="Import local PDF references into an offline searchable code library.",
         status="Available",
         available=True,
     ),
     ToolDefinition(
-        key="doubly_beam",
-        title="Doubly Beam Analysis",
-        description="Reinforced concrete doubly reinforced beam analysis and design.",
-        status="Coming Soon",
-        available=False,
+        key="rc_beam",
+        title="RC Beam Analysis",
+        description="Reinforced concrete beam analysis and design.",
+        status="Available",
+        available=True,
     ),
     ToolDefinition(
         key="beam_fiber_model",
@@ -57,4 +57,3 @@ def open_tool(tool_key: str) -> None:
 
 def go_home() -> None:
     st.session_state[ACTIVE_VIEW_KEY] = HOME_VIEW
-

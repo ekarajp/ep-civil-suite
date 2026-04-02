@@ -41,6 +41,10 @@ def design_deflection_check(design_input: DeflectionDesignInput) -> DeflectionDe
         from .deflection_aci_99 import calculate_aci_99_deflection
 
         return calculate_aci_99_deflection(design_input)
+    if design_input.code_version == DeflectionCodeVersion.ACI318_08:
+        from .deflection_aci_08 import calculate_aci_08_deflection
+
+        return calculate_aci_08_deflection(design_input)
     if design_input.code_version == DeflectionCodeVersion.ACI318_11:
         from .deflection_aci_11 import calculate_aci_11_deflection
 
@@ -49,6 +53,10 @@ def design_deflection_check(design_input: DeflectionDesignInput) -> DeflectionDe
         from .deflection_aci_14 import calculate_aci_14_deflection
 
         return calculate_aci_14_deflection(design_input)
+    if design_input.code_version == DeflectionCodeVersion.ACI318_25:
+        from .deflection_aci_25 import calculate_aci_25_deflection
+
+        return calculate_aci_25_deflection(design_input)
     from .deflection_aci_19 import calculate_aci_19_deflection
 
     return calculate_aci_19_deflection(design_input)

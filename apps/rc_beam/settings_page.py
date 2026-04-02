@@ -42,6 +42,29 @@ def main() -> None:
     with action_right:
         st.caption("Default restores the original current app behavior for Ec, Es, and fr.")
 
+    with st.container(border=True):
+        st.markdown("<div class='section-label'>Beam Behavior Settings</div>", unsafe_allow_html=True)
+        st.number_input(
+            "Auto Beam Behavior Threshold (R)",
+            min_value=0.0,
+            max_value=100.0,
+            step=1.0,
+            key="auto_beam_behavior_threshold_percent",
+            help=(
+                "Used in Auto mode to determine whether compression steel contribution is significant enough "
+                "to classify the beam as Doubly.\n\n"
+                "R = (Mn_full - Mn_single) / Mn_full\n\n"
+                "Mn_single = flexural strength ignoring compression steel contribution\n"
+                "Mn_full = flexural strength including compression steel contribution\n"
+                "If R exceeds the threshold, Auto mode classifies the beam as Doubly."
+            ),
+        )
+        st.caption(
+            "R measures how much compression steel increases flexural strength: "
+            "R = (Mn_full - Mn_single) / Mn_full. "
+            "If Auto mode gives R greater than the selected threshold, the section is classified as Doubly."
+        )
+
     render_material_property_setting(
         key_prefix="ec",
         label="Ec (Concrete Modulus of Elasticity)",

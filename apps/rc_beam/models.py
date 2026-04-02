@@ -17,14 +17,24 @@ from design.torsion import TorsionDesignInput, TorsionDesignResults
 
 class DesignCode(str, Enum):
     ACI318_99 = "ACI318-99, EIT 1008-38"
+    ACI318_08 = "ACI318-08"
     ACI318_11 = "ACI318-11"
     ACI318_14 = "ACI318-14"
     ACI318_19 = "ACI318-19"
+    ACI318_25 = "ACI318-25"
 
 
 class BeamType(str, Enum):
     SIMPLE = "Simple Beam"
     CONTINUOUS = "Continuous Beam"
+
+
+class BeamBehaviorMode(str, Enum):
+    # These are engineering behavior labels for flexural classification,
+    # not legacy module names.
+    SINGLY = "Singly"
+    AUTO = "Auto"
+    DOUBLY = "Doubly"
 
 
 class DeflectionBeamType(str, Enum):
@@ -307,6 +317,8 @@ class DeflectionCheckInput:
 @dataclass(slots=True)
 class BeamDesignInputSet:
     beam_type: BeamType = BeamType.SIMPLE
+    beam_behavior_mode: BeamBehaviorMode = BeamBehaviorMode.AUTO
+    auto_beam_behavior_threshold_ratio: float = 0.05
     consider_deflection: bool = False
     metadata: ProjectMetadata = field(default_factory=ProjectMetadata)
     materials: MaterialPropertiesInput = field(default_factory=MaterialPropertiesInput)
@@ -409,6 +421,13 @@ class FlexuralDesignResults:
     ratio_status: str
     design_status: str
     review_note: str = ""
+    beam_behavior_mode: str = BeamBehaviorMode.AUTO.value
+    effective_beam_behavior: str = BeamBehaviorMode.SINGLY.value
+    auto_result: str = ""
+    behavior_contribution_ratio_r: float = 0.0
+    behavior_threshold_r: float = 0.05
+    mn_single_kgm: float = 0.0
+    mn_full_kgm: float = 0.0
 
 
 @dataclass(slots=True)
@@ -558,6 +577,8 @@ class BeamDesignResults:
 def default_beam_design_inputs() -> BeamDesignInputSet:
     return BeamDesignInputSet(
         beam_type=BeamType.SIMPLE,
+        beam_behavior_mode=BeamBehaviorMode.AUTO,
+        auto_beam_behavior_threshold_ratio=0.05,
         metadata=ProjectMetadata(design_code=DesignCode.ACI318_19, tag=""),
         materials=MaterialPropertiesInput(
             concrete_strength_ksc=240.0,

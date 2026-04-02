@@ -94,6 +94,14 @@ def test_aci318_14_flexural_phi_uses_0p65_to_0p90_transition() -> None:
     assert phi == pytest.approx(0.7766129032258065)
 
 
+def test_aci318_08_flexural_phi_matches_2011_transition_branch() -> None:
+    ety = 4000.0 / (2.04 * 10**6)
+
+    assert calculate_flexural_phi(DesignCode.ACI318_08, et=0.0035, ety=ety) == pytest.approx(
+        calculate_flexural_phi(DesignCode.ACI318_11, et=0.0035, ety=ety)
+    )
+
+
 def test_aci318_19_rho_max_depends_on_actual_fy() -> None:
     rho_max_grade_4000 = calculate_rho_max(
         DesignCode.ACI318_19,
@@ -112,3 +120,22 @@ def test_aci318_19_rho_max_depends_on_actual_fy() -> None:
 
     assert rho_max_grade_4000 == pytest.approx(0.01633633004926108)
     assert rho_max_grade_5000 < rho_max_grade_4000
+
+
+def test_aci318_25_rho_max_matches_2019_branch_for_same_materials() -> None:
+    rho_max_19 = calculate_rho_max(
+        DesignCode.ACI318_19,
+        fc_prime_ksc=240.0,
+        fy_ksc=4000.0,
+        beta_1=0.85,
+        es_ksc=2.04 * 10**6,
+    )
+    rho_max_25 = calculate_rho_max(
+        DesignCode.ACI318_25,
+        fc_prime_ksc=240.0,
+        fy_ksc=4000.0,
+        beta_1=0.85,
+        es_ksc=2.04 * 10**6,
+    )
+
+    assert rho_max_25 == pytest.approx(rho_max_19)

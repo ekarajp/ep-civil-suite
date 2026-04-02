@@ -22,8 +22,8 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
     """Design beam shear reinforcement for the app's audited beam scope.
 
     The implemented path follows the simplified beam-shear expressions used by
-    the current application, with ACI 318-19 size-effect and Vc,max handling
-    applied only to the 2019 code branch.
+    the current application, with ACI 318-19/25 size-effect and Vc,max handling
+    applied only to the modern code branch.
     """
     geometry_results = calculate_beam_geometry(
         BeamGeometryInputData(
@@ -99,7 +99,7 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
     size_effect_factor = 1.0
     size_effect_applied = False
     vc_kg = base_vc_kg
-    if input_data.design_code == DesignCode.ACI318_19 and av_cm2 < av_min_cm2 - 1e-9:
+    if input_data.design_code in {DesignCode.ACI318_19, DesignCode.ACI318_25} and av_cm2 < av_min_cm2 - 1e-9:
         size_effect_factor = calculate_aci318_19_size_effect_factor(d_plus_cm)
         size_effect_applied = size_effect_factor < 1.0 - 1e-9
         vc_kg = base_vc_kg * size_effect_factor
@@ -115,7 +115,7 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
 
     vc_max_kg: float | None = None
     vc_capped_by_max = False
-    if input_data.design_code == DesignCode.ACI318_19:
+    if input_data.design_code in {DesignCode.ACI318_19, DesignCode.ACI318_25}:
         vc_max_kg = calculate_aci318_19_vc_max_kg(
             sqrt_fc,
             input_data.geometry.width_cm,

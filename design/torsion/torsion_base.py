@@ -19,9 +19,11 @@ ACI_318_19_ALT_PROCEDURE_MESSAGE = (
 
 class TorsionDesignCode(str, Enum):
     ACI318_99 = "ACI 318-99"
+    ACI318_08 = "ACI 318-08"
     ACI318_11 = "ACI 318-11"
     ACI318_14 = "ACI 318-14"
     ACI318_19 = "ACI 318-19"
+    ACI318_25 = "ACI 318-25"
 
 
 class TorsionDemandType(str, Enum):
@@ -159,6 +161,10 @@ def calculate_torsion_design(
         from .torsion_aci_99 import calculate_aci_99_torsion
 
         return calculate_aci_99_torsion(design_input, geometry_input, material_input)
+    if design_input.design_code == TorsionDesignCode.ACI318_08:
+        from .torsion_aci_08 import calculate_aci_08_torsion
+
+        return calculate_aci_08_torsion(design_input, geometry_input, material_input)
     if design_input.design_code == TorsionDesignCode.ACI318_11:
         from .torsion_aci_11 import calculate_aci_11_torsion
 
@@ -167,6 +173,10 @@ def calculate_torsion_design(
         from .torsion_aci_14 import calculate_aci_14_torsion
 
         return calculate_aci_14_torsion(design_input, geometry_input, material_input)
+    if design_input.design_code == TorsionDesignCode.ACI318_25:
+        from .torsion_aci_25 import calculate_aci_25_torsion
+
+        return calculate_aci_25_torsion(design_input, geometry_input, material_input)
     from .torsion_aci_19 import calculate_aci_19_torsion
 
     return calculate_aci_19_torsion(design_input, geometry_input, material_input)
@@ -223,6 +233,7 @@ def calculate_standard_torsion(
     provided_transverse_mm2_per_mm = stirrup_leg_area_mm2 / geometry.spacing_mm
     provided_longitudinal_mm2 = cm2_to_mm2(design_input.resolved_provided_longitudinal_steel_cm2)
     alternative_procedure_allowed = enable_alternative_procedure_flag and geometry.aspect_ratio_h_over_bt >= 3.0
+    alternative_procedure_message = _alternative_procedure_message(design_input.design_code)
 
     warnings: list[str] = []
     if geometry_input.stirrup_legs < 2:
@@ -230,7 +241,7 @@ def calculate_standard_torsion(
     if design_input.demand_type == TorsionDemandType.COMPATIBILITY:
         warnings.append("Compatibility torsion is evaluated using the user-entered Tu without redistribution.")
     if alternative_procedure_allowed and clauses.alternative_procedure is not None:
-        warnings.append(ACI_318_19_ALT_PROCEDURE_MESSAGE)
+        warnings.append(alternative_procedure_message)
 
     # Threshold torsion check per the selected ACI clause map, e.g. ACI 318-19 22.7.4.
     threshold_torsion_nmm = (
@@ -368,7 +379,7 @@ def calculate_standard_torsion(
         can_neglect_torsion=can_neglect_torsion,
         cross_section_ok=cross_section_ok,
         alternative_procedure_allowed=alternative_procedure_allowed,
-        alternative_procedure_message=ACI_318_19_ALT_PROCEDURE_MESSAGE if alternative_procedure_allowed else "",
+        alternative_procedure_message=alternative_procedure_message if alternative_procedure_allowed else "",
         governing_equation=governing_equation,
         warnings=tuple(warnings),
         steps=tuple(steps),
@@ -554,3 +565,12 @@ def _validate_positive(value: float, field_name: str) -> None:
 def _validate_non_negative(value: float, field_name: str) -> None:
     if value < 0:
         raise ValueError(f"{field_name} must be zero or greater.")
+
+
+def _alternative_procedure_message(design_code: TorsionDesignCode) -> str:
+    if design_code == TorsionDesignCode.ACI318_19:
+        return ACI_318_19_ALT_PROCEDURE_MESSAGE
+    return (
+        f"{design_code.value} allows an alternative torsion design procedure for this geometry, "
+        "but this app currently uses the standard torsion design method only."
+    )

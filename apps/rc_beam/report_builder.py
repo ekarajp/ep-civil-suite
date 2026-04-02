@@ -66,6 +66,7 @@ def build_report_sections(inputs: BeamDesignInputSet, results: BeamDesignResults
 def build_print_report_sections(inputs: BeamDesignInputSet, results: BeamDesignResults) -> list[ReportSection]:
     input_summary_rows = [
         ReportRow("Design Code", "-", inputs.metadata.design_code.value, inputs.metadata.design_code.value, "-"),
+        ReportRow("Beam Behavior", "-", _beam_behavior_mode_summary(inputs), _beam_behavior_mode_summary(inputs), "-"),
         ReportRow(
             "Geometry",
             f"{_sym_b()} x {_sym_h()}, cover",
@@ -160,6 +161,14 @@ def build_summary_table_sections(inputs: BeamDesignInputSet, results: BeamDesign
             title="Member Summary",
             rows=[
                 ReportRow("Beam Type", "-", inputs.beam_type.value, inputs.beam_type.value, "-"),
+                ReportRow("Beam Behavior", "-", inputs.beam_behavior_mode.value, inputs.beam_behavior_mode.value, "-"),
+                ReportRow(
+                    "Threshold R",
+                    "-",
+                    f"{format_number(inputs.auto_beam_behavior_threshold_ratio * 100.0)}%",
+                    f"{format_number(inputs.auto_beam_behavior_threshold_ratio * 100.0)}%",
+                    "%",
+                ),
                 ReportRow("Code", "-", inputs.metadata.design_code.value, inputs.metadata.design_code.value, "-"),
                 ReportRow(
                     "Section",
@@ -252,11 +261,23 @@ def _build_summary_table_flexure_section(inputs: BeamDesignInputSet, results: Be
         ReportRow(
             "Positive Flexure",
             "-",
-            f"M<sub>u</sub> {format_number(inputs.positive_bending.factored_moment_kgm)} | &phi;M<sub>n</sub> {format_number(results.positive_bending.phi_mn_kgm)}",
+            (
+                f"M<sub>u</sub> {format_number(inputs.positive_bending.factored_moment_kgm)} | "
+                f"&phi;M<sub>n</sub> {format_number(results.positive_bending.phi_mn_kgm)} | "
+                f"{_beam_behavior_report_text(results.positive_bending)}"
+            ),
             format_ratio(results.positive_bending.ratio),
             "-",
             results.positive_bending.design_status,
             _summary_label(results.positive_bending.as_status),
+        ),
+        ReportRow(
+            "Positive Behavior",
+            "-",
+            _beam_behavior_report_text(results.positive_bending),
+            results.positive_bending.effective_beam_behavior,
+            "-",
+            results.positive_bending.design_status,
         ),
     ]
     if inputs.has_negative_design and results.negative_bending is not None:
@@ -264,11 +285,25 @@ def _build_summary_table_flexure_section(inputs: BeamDesignInputSet, results: Be
             ReportRow(
                 "Negative Flexure",
                 "-",
-                f"M<sub>u</sub> {format_number(inputs.negative_bending.factored_moment_kgm)} | &phi;M<sub>n</sub> {format_number(results.negative_bending.phi_mn_kgm)}",
+                (
+                    f"M<sub>u</sub> {format_number(inputs.negative_bending.factored_moment_kgm)} | "
+                    f"&phi;M<sub>n</sub> {format_number(results.negative_bending.phi_mn_kgm)} | "
+                    f"{_beam_behavior_report_text(results.negative_bending)}"
+                ),
                 format_ratio(results.negative_bending.ratio),
                 "-",
                 results.negative_bending.design_status,
                 _summary_label(results.negative_bending.as_status),
+            )
+        )
+        rows.append(
+            ReportRow(
+                "Negative Behavior",
+                "-",
+                _beam_behavior_report_text(results.negative_bending),
+                results.negative_bending.effective_beam_behavior,
+                "-",
+                results.negative_bending.design_status,
             )
         )
     rows.append(
@@ -1333,7 +1368,7 @@ def _build_material_section(inputs: BeamDesignInputSet, results: BeamDesignResul
                 format_ratio(results.materials.beta_1),
                 "-",
                 status=VerificationStatus.VERIFIED_CODE.value,
-                note="ACI 318-99/11 10.2.7.3; ACI 318-14/19 22.2.2.4.3",
+                note="ACI 318-99/08/11 10.2.7.3; ACI 318-14/19/25 22.2.2.4.3",
             ),
         ],
     )
@@ -1404,7 +1439,7 @@ def _build_shear_section(inputs: BeamDesignInputSet, results: BeamDesignResults)
             ReportRow("Vs required", "phiVs required / phi", f"{format_number(shear.phi_vs_required_kg)} / {format_ratio(shear.phi, 3)}", format_number(shear.nominal_vs_required_kg), "kg"),
             ReportRow("Av", "pi * db^2 / 4 * legs", f"db={inputs.shear.stirrup_diameter_mm}, legs={inputs.shear.legs_per_plane}", format_number(shear.av_cm2), "cm2"),
             ReportRow("Av,min", "Minimum stirrup area at provided spacing", f"s = {format_number(shear.provided_spacing_cm)}", format_number(shear.av_min_cm2), "cm2", shear.design_status if shear.av_cm2 < shear.av_min_cm2 else None),
-            ReportRow("Size effect", "ACI 318-19 lambda_s", "Applied to Vc when Av < Av,min" if shear.size_effect_applied else "Not applied", format_ratio(shear.size_effect_factor, 3), "-", shear.design_status if shear.size_effect_applied else None),
+            ReportRow("Size effect", "ACI 318-19/25 lambda_s", "Applied to Vc when Av < Av,min" if shear.size_effect_applied else "Not applied", format_ratio(shear.size_effect_factor, 3), "-", shear.design_status if shear.size_effect_applied else None),
             ReportRow("s max from Av", "min(Av*fvy/(0.2*sqrt(fc')*b), Av*fvy/(3.5*b))", "Current spacing limit", format_number(shear.s_max_from_av_cm), "cm"),
             ReportRow("s max from Vs", "Code-style spacing limit", "Current branch logic", format_number(shear.s_max_from_vs_cm), "cm"),
             ReportRow("Required spacing", "min(s strength, s max from Av, s max from Vs)", "Governing required spacing", format_number(shear.required_spacing_cm), "cm"),
@@ -2040,7 +2075,8 @@ def _build_flexure_summary_section(inputs: BeamDesignInputSet, results: BeamDesi
         f"At the positive-moment section, the factored moment is {format_number(inputs.positive_bending.factored_moment_kgm)} kgf-m "
         f"and the available design flexural strength is {format_number(results.positive_bending.phi_mn_kgm)} kgf-m, "
         f"giving a utilization ratio of {format_ratio(results.positive_bending.ratio)}. "
-        f"Positive flexural design is {_acceptability_phrase(results.positive_bending.design_status)}."
+        f"Positive flexural design is {_acceptability_phrase(results.positive_bending.design_status)}. "
+        f"{_beam_behavior_sentence(results.positive_bending)}"
     )
     bullets: list[str] = []
     if inputs.has_negative_design and results.negative_bending is not None:
@@ -2048,6 +2084,7 @@ def _build_flexure_summary_section(inputs: BeamDesignInputSet, results: BeamDesi
             f"Support section: Mu = {format_number(inputs.negative_bending.factored_moment_kgm)} kgf-m, "
             f"phiMn = {format_number(results.negative_bending.phi_mn_kgm)} kgf-m, ratio = {format_ratio(results.negative_bending.ratio)}."
         )
+        bullets.append(_beam_behavior_sentence(results.negative_bending, prefix="Support section"))
     return NarrativeSection(title="Flexure", body=positive_text, bullets=tuple(bullets))
 
 
@@ -2238,7 +2275,7 @@ def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignR
             results.positive_bending.design_status,
             "-",
             status=_summary_label(results.positive_bending.as_status),
-            note=_summary_label(_print_flexural_summary_note(results.positive_bending.review_note)),
+            note=_summary_label(_beam_behavior_report_text(results.positive_bending)),
         ),
     ]
     if combined.active:
@@ -2275,7 +2312,7 @@ def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignR
                 results.negative_bending.design_status,
                 "-",
                 status=_summary_label(results.negative_bending.as_status),
-                note=_summary_label(_print_flexural_summary_note(results.negative_bending.review_note)),
+                note=_summary_label(_beam_behavior_report_text(results.negative_bending)),
             ),
         )
     if inputs.consider_deflection:
@@ -2291,6 +2328,39 @@ def _build_print_design_summary(inputs: BeamDesignInputSet, results: BeamDesignR
             )
         )
     return ReportSection(title="Design Summary", rows=rows)
+
+
+def _beam_behavior_mode_summary(inputs: BeamDesignInputSet) -> str:
+    return (
+        f"{inputs.beam_behavior_mode.value} | "
+        f"R threshold {format_number(inputs.auto_beam_behavior_threshold_ratio * 100.0)}%"
+    )
+
+
+def _beam_behavior_report_text(results) -> str:
+    mode_text = f"Mode {results.beam_behavior_mode}"
+    if results.beam_behavior_mode == "Auto":
+        classification_text = f"Auto Result {results.auto_result or results.effective_beam_behavior}"
+    else:
+        classification_text = f"Effective {results.effective_beam_behavior}"
+    ratio_text = f"R {format_number(results.behavior_contribution_ratio_r * 100.0)}%"
+    threshold_text = f"Threshold {format_number(results.behavior_threshold_r * 100.0)}%"
+    return " | ".join((mode_text, classification_text, ratio_text, threshold_text))
+
+
+def _beam_behavior_sentence(results, *, prefix: str = "Beam behavior") -> str:
+    if results.beam_behavior_mode == "Auto":
+        return (
+            f"{prefix} is set to Auto and classifies this section as "
+            f"{results.auto_result or results.effective_beam_behavior}, based on "
+            f"R = {format_number(results.behavior_contribution_ratio_r * 100.0)}% "
+            f"against a threshold of {format_number(results.behavior_threshold_r * 100.0)}%."
+        )
+    return (
+        f"{prefix} is set to {results.beam_behavior_mode}, so the flexural check uses "
+        f"{results.effective_beam_behavior} behavior with "
+        f"R = {format_number(results.behavior_contribution_ratio_r * 100.0)}%."
+    )
 
 
 def _summary_label(text: str) -> str:

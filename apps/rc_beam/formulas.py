@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import math
 
 from design.deflection import (
@@ -43,6 +44,7 @@ from engines.shear import ShearBeamInput, design_shear_beam
 from engines.torsion import TorsionBeamInput, design_torsion_beam
 
 from .models import (
+    BeamBehaviorMode,
     BeamDesignInputSet,
     BeamDesignResults,
     BeamGeometryInput,
@@ -158,7 +160,25 @@ def calculate_positive_bending_design(
             design_case=MomentDesignCase.POSITIVE,
         )
     )
-    return _to_app_moment_results(engine_results)
+    material_results = calculate_material_properties(materials, design_inputs.material_settings)
+    geometry_results = calculate_beam_geometry(
+        geometry,
+        design_inputs.positive_bending,
+        design_inputs.negative_bending,
+        design_inputs.shear,
+        include_negative=design_inputs.has_negative_design,
+    )
+    return _apply_beam_behavior_to_flexural_results(
+        base_results=_to_app_moment_results(engine_results),
+        design_inputs=design_inputs,
+        material_results=material_results,
+        geometry_results=geometry_results,
+        tension_reinforcement=positive_bending.tension_reinforcement,
+        compression_reinforcement=positive_bending.compression_reinforcement,
+        factored_moment_kgm=positive_bending.factored_moment_kgm,
+        effective_depth_cm=geometry_results.d_plus_cm,
+        compression_depth_cm=geometry_results.positive_compression_centroid_d_prime_cm,
+    )
 
 
 def calculate_shear_design(
@@ -208,7 +228,27 @@ def calculate_negative_bending_design(
             design_case=MomentDesignCase.NEGATIVE_LEGACY,
         )
     )
-    return _to_app_moment_results(engine_results)
+    material_results = calculate_material_properties(materials, design_inputs.material_settings)
+    geometry_results = calculate_beam_geometry(
+        geometry,
+        design_inputs.positive_bending,
+        design_inputs.negative_bending,
+        design_inputs.shear,
+        include_negative=design_inputs.has_negative_design,
+    )
+    if geometry_results.d_minus_cm is None or geometry_results.negative_compression_centroid_from_bottom_cm is None:
+        return _to_app_moment_results(engine_results)
+    return _apply_beam_behavior_to_flexural_results(
+        base_results=_to_app_moment_results(engine_results),
+        design_inputs=design_inputs,
+        material_results=material_results,
+        geometry_results=geometry_results,
+        tension_reinforcement=negative_bending.tension_reinforcement,
+        compression_reinforcement=negative_bending.compression_reinforcement,
+        factored_moment_kgm=negative_bending.factored_moment_kgm,
+        effective_depth_cm=geometry_results.d_minus_cm,
+        compression_depth_cm=geometry_results.negative_compression_centroid_from_bottom_cm,
+    )
 
 
 def calculate_deflection_check(
@@ -902,6 +942,166 @@ def _to_app_moment_results(engine_results) -> FlexuralDesignResults:
     )
 
 
+def _apply_beam_behavior_to_flexural_results(
+    *,
+    base_results: FlexuralDesignResults,
+    design_inputs: BeamDesignInputSet,
+    material_results: MaterialResults,
+    geometry_results: BeamGeometryResults,
+    tension_reinforcement: ReinforcementArrangementInput,
+    compression_reinforcement: ReinforcementArrangementInput,
+    factored_moment_kgm: float,
+    effective_depth_cm: float,
+    compression_depth_cm: float,
+) -> FlexuralDesignResults:
+    full_results = _calculate_full_section_flexural_results(
+        design_inputs=design_inputs,
+        material_results=material_results,
+        tension_reinforcement=tension_reinforcement,
+        compression_reinforcement=compression_reinforcement,
+        factored_moment_kgm=factored_moment_kgm,
+        effective_depth_cm=effective_depth_cm,
+        compression_depth_cm=compression_depth_cm,
+        dt_cm=base_results.dt_cm,
+        ety=base_results.ety,
+        as_status=base_results.as_status,
+    )
+    mn_single_kgm = base_results.mn_kgm
+    mn_full_kgm = full_results["mn_kgm"] if full_results is not None else mn_single_kgm
+    contribution_ratio_r = _beam_behavior_contribution_ratio(mn_single_kgm, mn_full_kgm)
+    threshold_r = max(0.0, min(1.0, design_inputs.auto_beam_behavior_threshold_ratio))
+    auto_result = BeamBehaviorMode.SINGLY.value
+    if contribution_ratio_r > threshold_r:
+        auto_result = BeamBehaviorMode.DOUBLY.value
+
+    selected_mode = design_inputs.beam_behavior_mode
+    effective_mode = {
+        BeamBehaviorMode.SINGLY: BeamBehaviorMode.SINGLY.value,
+        BeamBehaviorMode.AUTO: auto_result,
+        BeamBehaviorMode.DOUBLY: BeamBehaviorMode.DOUBLY.value,
+    }[selected_mode]
+    use_full_results = effective_mode == BeamBehaviorMode.DOUBLY.value and full_results is not None
+
+    if not use_full_results:
+        return replace(
+            base_results,
+            beam_behavior_mode=selected_mode.value,
+            effective_beam_behavior=effective_mode,
+            auto_result=auto_result if selected_mode == BeamBehaviorMode.AUTO else "",
+            behavior_contribution_ratio_r=contribution_ratio_r,
+            behavior_threshold_r=threshold_r,
+            mn_single_kgm=mn_single_kgm,
+            mn_full_kgm=mn_full_kgm,
+        )
+
+    return replace(
+        base_results,
+        phi=full_results["phi"],
+        a_cm=full_results["a_cm"],
+        c_cm=full_results["c_cm"],
+        et=full_results["et"],
+        mn_kgm=full_results["mn_kgm"],
+        phi_mn_kgm=full_results["phi_mn_kgm"],
+        ratio=full_results["ratio"],
+        ratio_status=full_results["ratio_status"],
+        design_status=full_results["design_status"],
+        beam_behavior_mode=selected_mode.value,
+        effective_beam_behavior=effective_mode,
+        auto_result=auto_result if selected_mode == BeamBehaviorMode.AUTO else "",
+        behavior_contribution_ratio_r=contribution_ratio_r,
+        behavior_threshold_r=threshold_r,
+        mn_single_kgm=mn_single_kgm,
+        mn_full_kgm=mn_full_kgm,
+    )
+
+
+def _calculate_full_section_flexural_results(
+    *,
+    design_inputs: BeamDesignInputSet,
+    material_results: MaterialResults,
+    tension_reinforcement: ReinforcementArrangementInput,
+    compression_reinforcement: ReinforcementArrangementInput,
+    factored_moment_kgm: float,
+    effective_depth_cm: float,
+    compression_depth_cm: float,
+    dt_cm: float,
+    ety: float,
+    as_status: str,
+) -> dict[str, float | str] | None:
+    as_tension_cm2 = tension_reinforcement.total_area_cm2
+    as_compression_cm2 = compression_reinforcement.total_area_cm2
+    if as_tension_cm2 <= 0.0 or as_compression_cm2 <= 0.0:
+        return None
+
+    width_cm = design_inputs.geometry.width_cm
+    concrete_strength_ksc = design_inputs.materials.concrete_strength_ksc
+    steel_yield_ksc = design_inputs.materials.main_steel_yield_ksc
+    beta_1 = material_results.beta_1
+
+    def equilibrium(c_cm: float) -> float:
+        a_cm = beta_1 * c_cm
+        concrete_compression_kg = 0.85 * concrete_strength_ksc * width_cm * a_cm
+        compression_steel_strain = _safe_divide(ECU * max(c_cm - compression_depth_cm, 0.0), c_cm)
+        compression_steel_stress_ksc = min(steel_yield_ksc, material_results.es_ksc * compression_steel_strain)
+        compression_steel_force_kg = as_compression_cm2 * compression_steel_stress_ksc
+        tension_force_kg = as_tension_cm2 * steel_yield_ksc
+        return concrete_compression_kg + compression_steel_force_kg - tension_force_kg
+
+    lower_c_cm = 1e-6
+    upper_c_cm = max(design_inputs.geometry.depth_cm * 2.0, effective_depth_cm * 2.0, 1.0)
+    while equilibrium(upper_c_cm) < 0.0 and upper_c_cm < design_inputs.geometry.depth_cm * 128.0:
+        upper_c_cm *= 2.0
+    if equilibrium(upper_c_cm) < 0.0:
+        return None
+
+    # Solve steel-concrete force equilibrium without changing the existing beam engine.
+    for _ in range(80):
+        middle_c_cm = (lower_c_cm + upper_c_cm) / 2.0
+        if equilibrium(middle_c_cm) >= 0.0:
+            upper_c_cm = middle_c_cm
+        else:
+            lower_c_cm = middle_c_cm
+
+    c_cm = upper_c_cm
+    a_cm = beta_1 * c_cm
+    compression_steel_strain = _safe_divide(ECU * max(c_cm - compression_depth_cm, 0.0), c_cm)
+    compression_steel_stress_ksc = min(steel_yield_ksc, material_results.es_ksc * compression_steel_strain)
+    concrete_compression_kg = 0.85 * concrete_strength_ksc * width_cm * a_cm
+    compression_steel_force_kg = as_compression_cm2 * compression_steel_stress_ksc
+    mn_kgm = (
+        concrete_compression_kg * (effective_depth_cm - (a_cm / 2.0))
+        + compression_steel_force_kg * (effective_depth_cm - compression_depth_cm)
+    ) / 100.0
+    if not math.isfinite(mn_kgm) or mn_kgm <= 0.0:
+        return None
+
+    et = _safe_divide(ECU * (dt_cm - c_cm), c_cm)
+    phi = _calculate_flexural_phi(design_inputs.metadata.design_code, et, ety)
+    phi_mn_kgm = mn_kgm * phi
+    ratio = _safe_divide(factored_moment_kgm, phi_mn_kgm)
+    ratio_status = "OK" if phi_mn_kgm >= factored_moment_kgm else "NOT OK"
+    design_status = "PASS" if as_status == "OK" and ratio_status == "OK" else "FAIL"
+    return {
+        "phi": phi,
+        "a_cm": a_cm,
+        "c_cm": c_cm,
+        "et": et,
+        "mn_kgm": mn_kgm,
+        "phi_mn_kgm": phi_mn_kgm,
+        "ratio": ratio,
+        "ratio_status": ratio_status,
+        "design_status": design_status,
+    }
+
+
+def _beam_behavior_contribution_ratio(mn_single_kgm: float, mn_full_kgm: float) -> float:
+    if not math.isfinite(mn_full_kgm) or mn_full_kgm <= 0.0:
+        return 0.0
+    if not math.isfinite(mn_single_kgm):
+        return 1.0
+    return max(0.0, min(1.0, _safe_divide(mn_full_kgm - mn_single_kgm, mn_full_kgm)))
+
+
 def _to_app_shear_results(engine_results) -> ShearDesignResults:
     return ShearDesignResults(
         phi=engine_results.phi,
@@ -1084,29 +1284,33 @@ def _calculate_overall_assessment(
 
 
 def _flexural_as_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label(design_code)} 10.5.1"
     return f"{_design_code_label(design_code)} 9.6.1.2"
 
 
 def _shear_strength_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label(design_code)} 11.3 and 11.4"
     if design_code == DesignCode.ACI318_14:
         return "ACI 318-14 22.5.5.1 and 9.7.6.2"
-    return "ACI 318-19 Table 22.5.5.1 and 9.7.6.2"
+    if design_code == DesignCode.ACI318_19:
+        return "ACI 318-19 Table 22.5.5.1 and 9.7.6.2"
+    return "ACI 318-25 Table 22.5.5.1 and 9.7.6.2"
 
 
 def _shear_reinforcement_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label(design_code)} 11.4.7.2"
     if design_code == DesignCode.ACI318_14:
         return "ACI 318-14 Chapter 9 and Chapter 22 beam shear-strength limits"
-    return "ACI 318-19 Chapter 9 and Table 22.5.5.1"
+    if design_code == DesignCode.ACI318_19:
+        return "ACI 318-19 Chapter 9 and Table 22.5.5.1"
+    return "ACI 318-25 Chapter 9 and Table 22.5.5.1"
 
 
 def _shear_minimum_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_11}:
+    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
         return f"{_design_code_label(design_code)} 11.4.6.3"
     return f"{_design_code_label(design_code)} 9.6.3"
 
@@ -1114,9 +1318,11 @@ def _shear_minimum_clause_reference(design_code: DesignCode) -> str:
 def _design_code_label(design_code: DesignCode) -> str:
     mapping = {
         DesignCode.ACI318_99: "ACI 318-99",
+        DesignCode.ACI318_08: "ACI 318-08",
         DesignCode.ACI318_11: "ACI 318-11",
         DesignCode.ACI318_14: "ACI 318-14",
         DesignCode.ACI318_19: "ACI 318-19",
+        DesignCode.ACI318_25: "ACI 318-25",
     }
     return mapping[design_code]
 
@@ -1153,9 +1359,11 @@ def _format_aci_warning_reference(reference: str) -> str:
 def _torsion_spacing_clause_reference(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.6.1",
+        "ACI 318-08": "ACI 318-08 11.5.6.1",
         "ACI 318-11": "ACI 318-11 11.5.6.1",
         "ACI 318-14": "ACI 318-14 9.7.6.3.3",
         "ACI 318-19": "ACI 318-19 9.7.6.3.3",
+        "ACI 318-25": "ACI 318-25 9.7.6.3.3",
     }
     return mapping.get(code_version, code_version)
 
@@ -1163,9 +1371,11 @@ def _torsion_spacing_clause_reference(code_version: str) -> str:
 def _torsion_cross_section_clause_reference(code_version: str) -> str:
     mapping = {
         "ACI 318-99": "ACI 318-99 11.6.3.1",
+        "ACI 318-08": "ACI 318-08 11.5.3.1",
         "ACI 318-11": "ACI 318-11 11.5.3.1",
         "ACI 318-14": "ACI 318-14 22.7.7.1",
         "ACI 318-19": "ACI 318-19 22.7.7.1",
+        "ACI 318-25": "ACI 318-25 22.7.7.1",
     }
     return mapping.get(code_version, code_version)
 
@@ -1186,8 +1396,8 @@ def _formalize_shear_note(message: str, design_code: DesignCode) -> str:
     normalized = message.strip().rstrip(".")
     if "Av" in normalized or "lambda_s" in normalized:
         clause = _shear_minimum_clause_reference(design_code)
-        if design_code == DesignCode.ACI318_19:
-            clause = f"{clause} together with ACI 318-19 Table 22.5.5.1"
+        if design_code in {DesignCode.ACI318_19, DesignCode.ACI318_25}:
+            clause = f"{clause} together with {_design_code_label(design_code)} Table 22.5.5.1"
         return (
             f"{normalized}. {_format_aci_warning_reference(clause)}. This does not satisfy the minimum shear reinforcement trigger/check basis."
         )
@@ -1242,7 +1452,7 @@ def _calculate_flexural_phi(design_code: DesignCode, et: float, ety: float) -> f
         return math.nan
     if design_code == DesignCode.ACI318_99:
         return 0.9
-    if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}:
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11, DesignCode.ACI318_14}:
         if et <= ety:
             return 0.65
         if et <= 0.005:
@@ -1266,6 +1476,8 @@ def flexural_phi_chart_supported(design_code: DesignCode) -> bool:
 def flexural_phi_chart_points(design_code: DesignCode, ety: float) -> list[tuple[float, float]]:
     if design_code == DesignCode.ACI318_99:
         return []
+    if design_code == DesignCode.ACI318_08:
+        return [(0.0, 0.65), (0.002, 0.65), (0.005, 0.9), (0.006, 0.9)]
     if design_code == DesignCode.ACI318_11:
         return [(0.0, 0.65), (0.002, 0.65), (0.005, 0.9), (0.006, 0.9)]
     if design_code == DesignCode.ACI318_14:
@@ -1374,9 +1586,11 @@ def _evaluate_combined_shear_torsion_cross_section_limit(
     torsion_results: TorsionDesignResults,
 ) -> tuple[bool, float, float, float, float, float, str, bool]:
     if design_inputs.metadata.design_code not in {
+        DesignCode.ACI318_08,
         DesignCode.ACI318_11,
         DesignCode.ACI318_14,
         DesignCode.ACI318_19,
+        DesignCode.ACI318_25,
     }:
         return (False, 0.0, 0.0, 0.0, 0.0, 0.0, "", True)
 
@@ -1385,7 +1599,7 @@ def _evaluate_combined_shear_torsion_cross_section_limit(
     if width_cm <= 0.0 or d_cm <= 0.0:
         return (False, 0.0, 0.0, 0.0, 0.0, 0.0, "", True)
 
-    # ACI 318-14/19 22.7.7.1 combines the solid-section shear stress from Vu
+    # ACI 318-14/19/25 22.7.7.1 combines the solid-section shear stress from Vu
     # with the torsional stress from Tu using an RSS stress limit. The current
     # beam app scope is a solid rectangular section using the same d basis as shear.
     shear_stress_mpa = ksc_to_mpa(_safe_divide(design_inputs.shear.factored_shear_kg, width_cm * d_cm))
@@ -1411,12 +1625,16 @@ def _evaluate_combined_shear_torsion_cross_section_limit(
 
 
 def _combined_shear_torsion_cross_section_clause(design_code: DesignCode) -> str:
+    if design_code == DesignCode.ACI318_08:
+        return "ACI 318-08 11.5.3.1"
     if design_code == DesignCode.ACI318_11:
         return "ACI 318-11 11.5.3.1"
     if design_code == DesignCode.ACI318_14:
         return "ACI 318-14 22.7.7.1"
     if design_code == DesignCode.ACI318_19:
         return "ACI 318-19 22.7.7.1"
+    if design_code == DesignCode.ACI318_25:
+        return "ACI 318-25 22.7.7.1"
     return ""
 
 
@@ -1443,7 +1661,7 @@ def _calculate_rho_max(
     if design_code == DesignCode.ACI318_99:
         rho_balanced = 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.003 + epsilon_y))
         return 0.75 * rho_balanced
-    if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}:
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11, DesignCode.ACI318_14}:
         return 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.003 + 0.005))
     return 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (0.003 / (0.006 + epsilon_y))
 

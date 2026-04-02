@@ -3,13 +3,15 @@
 Scope of this audit:
 - rectangular nonprestressed beam sections
 - flexure without axial-force design interaction
-- ACI 318-99, 318-11, 318-14, and 318-19 code families
+- ACI 318-99, 318-08, 318-11, 318-14, 318-19, and 318-25 code families
 
 Clause basis used in this module:
 - ACI 318-99 Table 9.3.2 for flexural phi and Chapter 10 strain-block assumptions
+- ACI 318-08 Table 9.3.2.1 and Sections 10.2, 10.3, and 10.5
 - ACI 318-11 Table 9.3.2.1 and Sections 10.2, 10.3, and 10.5
 - ACI 318-14 Table 21.2.2 and Sections 22.2, 22.3, and 9.6.1.2
 - ACI 318-19 Table 21.2.2 and Sections 22.2, 22.3, and 9.6.1.2
+- ACI 318-25 Table 21.2.2 and Sections 22.2, 22.3, and 9.6.1.2
 """
 
 from __future__ import annotations
@@ -30,14 +32,14 @@ def calculate_flexural_phi(design_code: DesignCode, et: float, ety: float) -> fl
 
     The beam app uses the nonprestressed flexure strain-transition rules from
     the selected ACI code family. ACI 318-99 keeps phi = 0.90 for this beam
-    scope, while ACI 318-11/14 use the fixed tension-controlled strain limit
-    of 0.005 and ACI 318-19 uses ety + 0.003.
+    scope, while ACI 318-08/11/14 use the fixed tension-controlled strain
+    limit of 0.005 and ACI 318-19/25 use ety + 0.003.
     """
     if math.isnan(et):
         return math.nan
     if design_code == DesignCode.ACI318_99:
         return PHI_FLEXURE_MAX
-    if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}:
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11, DesignCode.ACI318_14}:
         return _interpolate_phi(et, ety, ACI_318_11_14_TENSION_CONTROLLED_STRAIN)
     return _interpolate_phi(et, ety, ety + 0.003)
 
@@ -45,9 +47,10 @@ def calculate_flexural_phi(design_code: DesignCode, et: float, ety: float) -> fl
 def calculate_rho_required(fc_prime_ksc: float, fy_ksc: float, ru_kg_per_cm2: float) -> float:
     """Return required steel ratio from the rectangular stress-block solution.
 
-    This is the direct singly reinforced beam solution based on the ACI
-    rectangular compression block assumptions used in Chapter 10 (ACI 318-99/11)
-    and Section 22.2 (ACI 318-14/19).
+    This is the direct rectangular beam solution used when flexure is evaluated
+    without compression-steel contribution, based on the ACI rectangular
+    compression block assumptions used in Chapter 10 (ACI 318-99/11) and
+    Section 22.2 (ACI 318-14/19).
     """
     discriminant = 1 - ((2 * ru_kg_per_cm2) / (0.85 * fc_prime_ksc))
     if discriminant < 0:
@@ -59,8 +62,9 @@ def calculate_rho_min(design_code: DesignCode, fc_prime_ksc: float, fy_ksc: floa
     """Return minimum tensile steel ratio for nonprestressed beams.
 
     ACI 318-99 uses Section 10.5.1.
+    ACI 318-08 keeps the same beam minimum logic in Section 10.5.1.
     ACI 318-11 keeps the same beam minimum logic in Section 10.5.1.
-    ACI 318-14/19 use Section 9.6.1.2.
+    ACI 318-14/19/25 use Section 9.6.1.2.
     """
     if design_code == DesignCode.ACI318_99:
         return 14 / fy_ksc
@@ -81,8 +85,8 @@ def calculate_rho_max(
     governing flexural strain-limit clauses and the rectangular stress block.
 
     - ACI 318-99: legacy beam limit based on 0.75 rho_bal
-    - ACI 318-11/14: tension-controlled limit at et = 0.005
-    - ACI 318-19: tension-controlled limit at et = ety + 0.003
+    - ACI 318-08/11/14: tension-controlled limit at et = 0.005
+    - ACI 318-19/25: tension-controlled limit at et = ety + 0.003
     """
     epsilon_y = fy_ksc / es_ksc
     if design_code == DesignCode.ACI318_99:
@@ -90,7 +94,7 @@ def calculate_rho_max(
         return 0.75 * rho_balanced
     tension_controlled_strain = (
         ACI_318_11_14_TENSION_CONTROLLED_STRAIN
-        if design_code in {DesignCode.ACI318_11, DesignCode.ACI318_14}
+        if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11, DesignCode.ACI318_14}
         else epsilon_y + 0.003
     )
     return 0.85 * beta_1 * (fc_prime_ksc / fy_ksc) * (ECU / (ECU + tension_controlled_strain))

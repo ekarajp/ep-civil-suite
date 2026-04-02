@@ -1,6 +1,6 @@
 import pytest
 
-from apps.singly_beam.models import (
+from apps.rc_beam.models import (
     BeamDesignInputSet,
     BeamGeometryInput,
     PositiveBendingInput,
@@ -8,7 +8,7 @@ from apps.singly_beam.models import (
     RebarLayerInput,
     ReinforcementArrangementInput,
 )
-from apps.singly_beam.visualization import (
+from apps.rc_beam.visualization import (
     STIRRUP_DRAWING_COLOR,
     PhiFlexureChartState,
     build_beam_section_svg,

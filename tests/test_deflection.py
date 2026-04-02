@@ -1,8 +1,8 @@
 import pytest
 
-from apps.singly_beam.formulas import calculate_full_design_results
-from apps.singly_beam.models import BeamDesignInputSet, BeamType, DeflectionCheckInput
-from apps.singly_beam.report_builder import build_report_sections
+from apps.rc_beam.formulas import calculate_full_design_results
+from apps.rc_beam.models import BeamDesignInputSet, BeamType, DeflectionCheckInput
+from apps.rc_beam.report_builder import build_report_sections
 from design.deflection import (
     AllowableDeflectionLimitInput,
     AllowableDeflectionPreset,
@@ -35,9 +35,11 @@ def _simple_deflection_input(code_version: DeflectionCodeVersion) -> DeflectionD
     "code_version",
     [
         DeflectionCodeVersion.ACI318_99,
+        DeflectionCodeVersion.ACI318_08,
         DeflectionCodeVersion.ACI318_11,
         DeflectionCodeVersion.ACI318_14,
         DeflectionCodeVersion.ACI318_19,
+        DeflectionCodeVersion.ACI318_25,
     ],
 )
 def test_each_deflection_code_version_runs_independently(code_version: DeflectionCodeVersion) -> None:

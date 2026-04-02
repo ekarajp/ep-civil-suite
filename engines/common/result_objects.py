@@ -13,6 +13,7 @@ class DesignCode(str, Enum):
     """Supported design code families for current beam engines."""
 
     ACI318_99 = "ACI318-99, EIT 1008-38"
+    ACI318_08 = "ACI318-08"
     ACI318_11 = "ACI318-11"
     ACI318_14 = "ACI318-14"
     ACI318_19 = "ACI318-19"
@@ -162,4 +163,3 @@ class BeamGeometryResults:
     positive_tension_spacing: ReinforcementSpacingResults
     negative_compression_spacing: ReinforcementSpacingResults | None
     negative_tension_spacing: ReinforcementSpacingResults | None
-

@@ -1,8 +1,8 @@
 import pytest
 
-from apps.singly_beam.formulas import calculate_full_design_results
-from apps.singly_beam.models import BeamDesignInputSet
-from apps.singly_beam.report_builder import build_report_sections
+from apps.rc_beam.formulas import calculate_full_design_results
+from apps.rc_beam.models import BeamDesignInputSet
+from apps.rc_beam.report_builder import build_report_sections
 from design.torsion import (
     TorsionDemandType,
     TorsionDesignCode,
@@ -73,9 +73,11 @@ def test_torsion_below_threshold_reverts_to_shear_only_summary_behavior() -> Non
     "design_code",
     [
         TorsionDesignCode.ACI318_99,
+        TorsionDesignCode.ACI318_08,
         TorsionDesignCode.ACI318_11,
         TorsionDesignCode.ACI318_14,
         TorsionDesignCode.ACI318_19,
+        TorsionDesignCode.ACI318_25,
     ],
 )
 def test_each_aci_torsion_version_runs_independently(design_code: TorsionDesignCode) -> None:
@@ -156,6 +158,34 @@ def test_aci318_19_alt_procedure_warning_triggers_for_h_over_bt_ge_3() -> None:
 
     assert results.alternative_procedure_allowed is True
     assert ACI_318_19_ALT_PROCEDURE_MESSAGE in results.warnings
+
+
+def test_aci318_25_alt_procedure_warning_triggers_for_h_over_bt_ge_3() -> None:
+    results = calculate_torsion_design(
+        TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=1200.0,
+            design_code=TorsionDesignCode.ACI318_25,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_steel_cm2=8.0,
+        ),
+        TorsionSectionGeometryInput(
+            width_cm=20.0,
+            depth_cm=70.0,
+            cover_cm=4.0,
+            stirrup_diameter_mm=9,
+            stirrup_spacing_cm=15.0,
+            stirrup_legs=2,
+        ),
+        TorsionDesignMaterialInput(
+            concrete_strength_ksc=240.0,
+            transverse_steel_yield_ksc=2400.0,
+            longitudinal_steel_yield_ksc=4000.0,
+        ),
+    )
+
+    assert results.alternative_procedure_allowed is True
+    assert "ACI 318-25 allows an alternative torsion design procedure" in results.warnings[0]
 
 
 def test_impossible_geometry_or_negative_inputs_raise_validation_errors() -> None:

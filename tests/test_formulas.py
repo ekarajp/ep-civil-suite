@@ -1,6 +1,6 @@
 import pytest
 
-from apps.singly_beam.formulas import (
+from apps.rc_beam.formulas import (
     _auto_select_spacing_cm,
     _combined_shear_torsion_cross_section_clause,
     _torsion_cross_section_clause_reference,
@@ -14,8 +14,9 @@ from apps.singly_beam.formulas import (
     calculate_shear_design,
     flexural_phi_chart_points,
 )
-from apps.singly_beam.report_builder import build_report_sections
-from apps.singly_beam.models import (
+from apps.rc_beam.report_builder import build_report_sections
+from apps.rc_beam.models import (
+    BeamBehaviorMode,
     BeamDesignInputSet,
     BeamType,
     DeflectionCheckInput,
@@ -32,6 +33,39 @@ from apps.singly_beam.models import (
 from design.deflection import DeflectionCodeVersion, DeflectionMemberType, DeflectionSupportCondition
 from design.torsion import TorsionDemandType, TorsionDesignCode, TorsionDesignInput
 from engines.common import DesignCode
+
+
+def _heavy_beam_behavior_inputs(mode: BeamBehaviorMode) -> BeamDesignInputSet:
+    return BeamDesignInputSet(
+        beam_behavior_mode=mode,
+        positive_bending=PositiveBendingInput(
+            factored_moment_kgm=4000.0,
+            compression_reinforcement=ReinforcementArrangementInput(
+                layer_1=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=25, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=2),
+                ),
+                layer_2=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=25, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=2),
+                ),
+            ),
+            tension_reinforcement=ReinforcementArrangementInput(
+                layer_1=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=25, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=2),
+                ),
+                layer_2=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=25, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=2),
+                ),
+                layer_3=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=25, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=2),
+                ),
+            ),
+        ),
+    )
 
 
 def test_rebar_group_rejects_incomplete_definition() -> None:
@@ -148,6 +182,67 @@ def test_positive_bending_matches_standalone_defaults() -> None:
     assert results.phi_mn_kgm == pytest.approx(4010.8554293468997)
     assert results.ratio == pytest.approx(0.9972934877513979)
     assert results.design_status == "PASS"
+
+
+def test_auto_beam_behavior_defaults_to_compression_ignored_mode_when_contribution_is_small() -> None:
+    inputs = BeamDesignInputSet()
+
+    results = calculate_positive_bending_design(
+        inputs.materials,
+        inputs.geometry,
+        inputs.positive_bending,
+        inputs,
+    )
+
+    assert results.beam_behavior_mode == BeamBehaviorMode.AUTO.value
+    assert results.effective_beam_behavior == BeamBehaviorMode.SINGLY.value
+    assert results.auto_result == BeamBehaviorMode.SINGLY.value
+    assert results.behavior_contribution_ratio_r == pytest.approx(0.0)
+    assert results.behavior_threshold_r == pytest.approx(0.05)
+
+
+def test_auto_beam_behavior_classifies_full_flexure_mode_when_compression_steel_is_significant() -> None:
+    inputs = _heavy_beam_behavior_inputs(BeamBehaviorMode.AUTO)
+
+    results = calculate_positive_bending_design(
+        inputs.materials,
+        inputs.geometry,
+        inputs.positive_bending,
+        inputs,
+    )
+
+    assert results.beam_behavior_mode == BeamBehaviorMode.AUTO.value
+    assert results.effective_beam_behavior == BeamBehaviorMode.DOUBLY.value
+    assert results.auto_result == BeamBehaviorMode.DOUBLY.value
+    assert results.mn_full_kgm > results.mn_single_kgm
+    assert results.behavior_contribution_ratio_r == pytest.approx(1.0)
+    assert results.behavior_contribution_ratio_r > results.behavior_threshold_r
+
+
+def test_explicit_beam_behavior_modes_override_auto_classification() -> None:
+    compression_ignored_inputs = _heavy_beam_behavior_inputs(BeamBehaviorMode.SINGLY)
+    full_flexure_inputs = _heavy_beam_behavior_inputs(BeamBehaviorMode.DOUBLY)
+
+    compression_ignored_results = calculate_positive_bending_design(
+        compression_ignored_inputs.materials,
+        compression_ignored_inputs.geometry,
+        compression_ignored_inputs.positive_bending,
+        compression_ignored_inputs,
+    )
+    full_flexure_results = calculate_positive_bending_design(
+        full_flexure_inputs.materials,
+        full_flexure_inputs.geometry,
+        full_flexure_inputs.positive_bending,
+        full_flexure_inputs,
+    )
+
+    assert compression_ignored_results.effective_beam_behavior == BeamBehaviorMode.SINGLY.value
+    assert compression_ignored_results.auto_result == ""
+    assert compression_ignored_results.mn_kgm == pytest.approx(compression_ignored_results.mn_single_kgm)
+    assert full_flexure_results.effective_beam_behavior == BeamBehaviorMode.DOUBLY.value
+    assert full_flexure_results.auto_result == ""
+    assert full_flexure_results.mn_kgm == pytest.approx(full_flexure_results.mn_full_kgm)
+    assert full_flexure_results.mn_kgm > compression_ignored_results.mn_kgm
 
 
 def test_positive_bending_phi_changes_when_added_tension_layers_increase_neutral_axis_depth() -> None:

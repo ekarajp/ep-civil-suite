@@ -51,9 +51,9 @@ def main() -> None:
     st.markdown("<div class='screen-only report-toolbar'>", unsafe_allow_html=True)
     toolbar_left, toolbar_right = st.columns([0.9, 2.1], gap="medium")
     with toolbar_left:
-        render_print_button("full-report-root", "Singly Reinforced Beam Analysis - Full Report", palette)
+        render_print_button("full-report-root", "Reinforced Concrete Beam Analysis - Full Report", palette)
     with toolbar_right:
-        st.markdown("<div class='hero-title'>Singly Reinforced Beam Analysis</div>", unsafe_allow_html=True)
+        st.markdown("<div class='hero-title'>Reinforced Concrete Beam Analysis</div>", unsafe_allow_html=True)
         st.markdown("<div class='hero-subtitle'>Full Report</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -204,7 +204,7 @@ def _render_cover_page(inputs, results, overview, palette, page_number: int, tot
         <div class="full-report-page">
           <div class="full-report-hero">
             <div>
-              <h1 class="full-report-title">Singly Reinforced Beam Analysis</h1>
+              <h1 class="full-report-title">Reinforced Concrete Beam Analysis</h1>
               <div class="full-report-subtitle">Full Report</div>
               <div class="full-report-lead">
                 {overview.member_summary}

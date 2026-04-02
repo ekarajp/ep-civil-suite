@@ -70,3 +70,38 @@ def test_design_shear_beam_manual_spacing_can_fail() -> None:
     assert results.design_status == "FAIL"
     assert "exceeds required spacing" in results.review_note
 
+
+def test_aci318_25_shear_uses_same_size_effect_path_as_2019() -> None:
+    results_19 = design_shear_beam(
+        ShearBeamInput(
+            design_code=DesignCode.ACI318_19,
+            materials=MaterialPropertiesInput(),
+            geometry=BeamSectionInput(),
+            factored_shear_kg=5000.0,
+            stirrup_diameter_mm=6,
+            legs_per_plane=2,
+            spacing_mode=ShearSpacingMode.MANUAL,
+            provided_spacing_cm=30.0,
+            positive_compression_reinforcement=_positive_compression(),
+            positive_tension_reinforcement=_positive_tension(),
+        )
+    )
+    results_25 = design_shear_beam(
+        ShearBeamInput(
+            design_code=DesignCode.ACI318_25,
+            materials=MaterialPropertiesInput(),
+            geometry=BeamSectionInput(),
+            factored_shear_kg=5000.0,
+            stirrup_diameter_mm=6,
+            legs_per_plane=2,
+            spacing_mode=ShearSpacingMode.MANUAL,
+            provided_spacing_cm=30.0,
+            positive_compression_reinforcement=_positive_compression(),
+            positive_tension_reinforcement=_positive_tension(),
+        )
+    )
+
+    assert results_19.size_effect_applied is True
+    assert results_25.size_effect_applied is True
+    assert results_25.size_effect_factor == pytest.approx(results_19.size_effect_factor)
+    assert results_25.vc_kg == pytest.approx(results_19.vc_kg)

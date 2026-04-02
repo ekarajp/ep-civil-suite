@@ -7,9 +7,11 @@ Scope of this audit:
 
 Clause basis used in this module:
 - ACI 318-99 Chapter 11 and Table 9.3.2
+- ACI 318-08 Chapter 11 and Chapter 9 strength-reduction factors
 - ACI 318-11 Chapter 11 and Chapter 9 strength-reduction factors
 - ACI 318-14 Chapter 22 beam shear strength with Chapter 21 phi factors
 - ACI 318-19 Table 22.5.5.1, Section 9.6.3, Section 9.7.6.2, and Chapter 21 phi factors
+- ACI 318-25 Table 22.5.5.1, Section 9.6.3, Section 9.7.6.2, and Chapter 21 phi factors
 """
 
 from __future__ import annotations
