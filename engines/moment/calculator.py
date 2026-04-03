@@ -31,7 +31,7 @@ def design_moment_beam(input_data: MomentBeamInput) -> MomentDesignResult:
         d_for_design_cm = geometry_results.d_plus_cm
         as_min_depth_cm = geometry_results.d_plus_cm
         mn_depth_cm = geometry_results.d_plus_cm
-        first_tension_group = input_data.positive_tension_reinforcement.layer_1.group_a
+        first_tension_layer = input_data.positive_tension_reinforcement.layer_1
         review_note = ""
     else:
         tension_reinforcement = input_data.negative_tension_reinforcement
@@ -40,7 +40,7 @@ def design_moment_beam(input_data: MomentBeamInput) -> MomentDesignResult:
             raise ValueError("Negative bending geometry is not available for the selected moment design case.")
         as_min_depth_cm = d_for_design_cm
         mn_depth_cm = d_for_design_cm
-        first_tension_group = input_data.negative_tension_reinforcement.layer_1.group_a
+        first_tension_layer = input_data.negative_tension_reinforcement.layer_1
         review_note = ""
 
     as_provided_cm2 = tension_reinforcement.total_area_cm2
@@ -54,7 +54,7 @@ def design_moment_beam(input_data: MomentBeamInput) -> MomentDesignResult:
         input_data.geometry.depth_cm
         - input_data.geometry.cover_cm
         - diameter_cm(input_data.stirrup_diameter_mm)
-        - (first_tension_group.diameter_cm / 2.0)
+        - (max(first_tension_layer.group_a.diameter_cm, first_tension_layer.group_b.diameter_cm) / 2.0)
     )
     ety = safe_divide(input_data.materials.main_steel_yield_ksc, material_results.es_ksc)
     et = safe_divide(ECU * (dt_cm - c_cm), c_cm)

@@ -105,3 +105,25 @@ def test_aci318_25_shear_uses_same_size_effect_path_as_2019() -> None:
     assert results_25.size_effect_applied is True
     assert results_25.size_effect_factor == pytest.approx(results_19.size_effect_factor)
     assert results_25.vc_kg == pytest.approx(results_19.vc_kg)
+
+
+def test_low_shear_does_not_require_minimum_shear_reinforcement_or_spacing_limit() -> None:
+    results = design_shear_beam(
+        ShearBeamInput(
+            design_code=DesignCode.ACI318_19,
+            materials=MaterialPropertiesInput(),
+            geometry=BeamSectionInput(),
+            factored_shear_kg=1000.0,
+            stirrup_diameter_mm=9,
+            legs_per_plane=2,
+            spacing_mode=ShearSpacingMode.MANUAL,
+            provided_spacing_cm=50.0,
+            positive_compression_reinforcement=_positive_compression(),
+            positive_tension_reinforcement=_positive_tension(),
+        )
+    )
+
+    assert results.minimum_reinforcement_required is False
+    assert results.design_status == "PASS"
+    assert "Av =" not in results.review_note
+    assert "Provided spacing" not in results.review_note

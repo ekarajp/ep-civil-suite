@@ -54,6 +54,8 @@ class ShearDesignResult:
     nominal_vs_required_kg: float
     av_cm2: float
     av_min_cm2: float
+    minimum_reinforcement_trigger_kg: float
+    minimum_reinforcement_required: bool
     size_effect_factor: float
     size_effect_applied: bool
     s_max_from_av_cm: float
@@ -71,4 +73,3 @@ class ShearDesignResult:
     section_change_required: bool = False
     section_change_note: str = ""
     review_note: str = ""
-

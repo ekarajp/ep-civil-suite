@@ -178,6 +178,7 @@ def calculate_positive_bending_design(
         factored_moment_kgm=positive_bending.factored_moment_kgm,
         effective_depth_cm=geometry_results.d_plus_cm,
         compression_depth_cm=geometry_results.positive_compression_centroid_d_prime_cm,
+        compression_face="top",
     )
 
 
@@ -248,6 +249,7 @@ def calculate_negative_bending_design(
         factored_moment_kgm=negative_bending.factored_moment_kgm,
         effective_depth_cm=geometry_results.d_minus_cm,
         compression_depth_cm=geometry_results.negative_compression_centroid_from_bottom_cm,
+        compression_face="bottom",
     )
 
 
@@ -953,6 +955,7 @@ def _apply_beam_behavior_to_flexural_results(
     factored_moment_kgm: float,
     effective_depth_cm: float,
     compression_depth_cm: float,
+    compression_face: str,
 ) -> FlexuralDesignResults:
     full_results = _calculate_full_section_flexural_results(
         design_inputs=design_inputs,
@@ -962,6 +965,7 @@ def _apply_beam_behavior_to_flexural_results(
         factored_moment_kgm=factored_moment_kgm,
         effective_depth_cm=effective_depth_cm,
         compression_depth_cm=compression_depth_cm,
+        compression_face=compression_face,
         dt_cm=base_results.dt_cm,
         ety=base_results.ety,
         as_status=base_results.as_status,
@@ -1024,13 +1028,26 @@ def _calculate_full_section_flexural_results(
     factored_moment_kgm: float,
     effective_depth_cm: float,
     compression_depth_cm: float,
+    compression_face: str,
     dt_cm: float,
     ety: float,
     as_status: str,
 ) -> dict[str, float | str] | None:
-    as_tension_cm2 = tension_reinforcement.total_area_cm2
-    as_compression_cm2 = compression_reinforcement.total_area_cm2
-    if as_tension_cm2 <= 0.0 or as_compression_cm2 <= 0.0:
+    tension_bars = _reinforcement_bar_depths_from_compression_face(
+        tension_reinforcement,
+        design_inputs.geometry,
+        design_inputs.shear.stirrup_diameter_mm,
+        compression_face=compression_face,
+        arrangement_face="bottom" if compression_face == "top" else "top",
+    )
+    compression_bars = _reinforcement_bar_depths_from_compression_face(
+        compression_reinforcement,
+        design_inputs.geometry,
+        design_inputs.shear.stirrup_diameter_mm,
+        compression_face=compression_face,
+        arrangement_face=compression_face,
+    )
+    if not tension_bars or not compression_bars:
         return None
 
     width_cm = design_inputs.geometry.width_cm
@@ -1038,14 +1055,20 @@ def _calculate_full_section_flexural_results(
     steel_yield_ksc = design_inputs.materials.main_steel_yield_ksc
     beta_1 = material_results.beta_1
 
+    def steel_stress_ksc(strain: float) -> float:
+        if not math.isfinite(strain) or abs(strain) <= 1e-12:
+            return 0.0
+        elastic_stress_ksc = material_results.es_ksc * abs(strain)
+        return math.copysign(min(steel_yield_ksc, elastic_stress_ksc), strain)
+
     def equilibrium(c_cm: float) -> float:
         a_cm = beta_1 * c_cm
         concrete_compression_kg = 0.85 * concrete_strength_ksc * width_cm * a_cm
-        compression_steel_strain = _safe_divide(ECU * max(c_cm - compression_depth_cm, 0.0), c_cm)
-        compression_steel_stress_ksc = min(steel_yield_ksc, material_results.es_ksc * compression_steel_strain)
-        compression_steel_force_kg = as_compression_cm2 * compression_steel_stress_ksc
-        tension_force_kg = as_tension_cm2 * steel_yield_ksc
-        return concrete_compression_kg + compression_steel_force_kg - tension_force_kg
+        steel_force_kg = 0.0
+        for bar_area_cm2, bar_depth_cm in [*compression_bars, *tension_bars]:
+            steel_strain = _safe_divide(ECU * (c_cm - bar_depth_cm), c_cm)
+            steel_force_kg += bar_area_cm2 * steel_stress_ksc(steel_strain)
+        return concrete_compression_kg + steel_force_kg
 
     lower_c_cm = 1e-6
     upper_c_cm = max(design_inputs.geometry.depth_cm * 2.0, effective_depth_cm * 2.0, 1.0)
@@ -1064,17 +1087,17 @@ def _calculate_full_section_flexural_results(
 
     c_cm = upper_c_cm
     a_cm = beta_1 * c_cm
-    compression_steel_strain = _safe_divide(ECU * max(c_cm - compression_depth_cm, 0.0), c_cm)
-    compression_steel_stress_ksc = min(steel_yield_ksc, material_results.es_ksc * compression_steel_strain)
     concrete_compression_kg = 0.85 * concrete_strength_ksc * width_cm * a_cm
-    compression_steel_force_kg = as_compression_cm2 * compression_steel_stress_ksc
-    mn_kgm = (
-        concrete_compression_kg * (effective_depth_cm - (a_cm / 2.0))
-        + compression_steel_force_kg * (effective_depth_cm - compression_depth_cm)
-    ) / 100.0
+    steel_moment_kgcm = 0.0
+    for bar_area_cm2, bar_depth_cm in [*compression_bars, *tension_bars]:
+        steel_strain = _safe_divide(ECU * (c_cm - bar_depth_cm), c_cm)
+        steel_force_kg = bar_area_cm2 * steel_stress_ksc(steel_strain)
+        steel_moment_kgcm += steel_force_kg * bar_depth_cm
+    mn_kgm = abs((concrete_compression_kg * (a_cm / 2.0) + steel_moment_kgcm) / 100.0)
     if not math.isfinite(mn_kgm) or mn_kgm <= 0.0:
         return None
 
+    dt_cm = max(depth_cm for _, depth_cm in tension_bars)
     et = _safe_divide(ECU * (dt_cm - c_cm), c_cm)
     phi = _calculate_flexural_phi(design_inputs.metadata.design_code, et, ety)
     phi_mn_kgm = mn_kgm * phi
@@ -1102,6 +1125,31 @@ def _beam_behavior_contribution_ratio(mn_single_kgm: float, mn_full_kgm: float) 
     return max(0.0, min(1.0, _safe_divide(mn_full_kgm - mn_single_kgm, mn_full_kgm)))
 
 
+def _reinforcement_bar_depths_from_compression_face(
+    reinforcement: ReinforcementArrangementInput,
+    geometry: BeamGeometryInput,
+    stirrup_diameter_mm: int,
+    *,
+    compression_face: str,
+    arrangement_face: str,
+) -> list[tuple[float, float]]:
+    bars: list[tuple[float, float]] = []
+    for layer_index, layer in enumerate(reinforcement.layers()):
+        base_distance_cm = _layer_base_distance_cm(geometry, reinforcement, stirrup_diameter_mm, layer_index)
+        for group in layer.groups():
+            if group.count == 0 or group.diameter_mm is None:
+                continue
+            centroid_from_arrangement_face_cm = base_distance_cm + (_group_diameter_cm(group) / 2.0)
+            if arrangement_face == compression_face:
+                depth_from_compression_face_cm = centroid_from_arrangement_face_cm
+            else:
+                depth_from_compression_face_cm = geometry.depth_cm - centroid_from_arrangement_face_cm
+            single_bar_area_cm2 = _safe_divide(group.area_cm2, group.count)
+            for _ in range(group.count):
+                bars.append((single_bar_area_cm2, depth_from_compression_face_cm))
+    return bars
+
+
 def _to_app_shear_results(engine_results) -> ShearDesignResults:
     return ShearDesignResults(
         phi=engine_results.phi,
@@ -1115,6 +1163,8 @@ def _to_app_shear_results(engine_results) -> ShearDesignResults:
         nominal_vs_required_kg=engine_results.nominal_vs_required_kg,
         av_cm2=engine_results.av_cm2,
         av_min_cm2=engine_results.av_min_cm2,
+        minimum_reinforcement_trigger_kg=engine_results.minimum_reinforcement_trigger_kg,
+        minimum_reinforcement_required=engine_results.minimum_reinforcement_required,
         size_effect_factor=engine_results.size_effect_factor,
         size_effect_applied=engine_results.size_effect_applied,
         s_max_from_av_cm=engine_results.s_max_from_av_cm,
@@ -1272,7 +1322,9 @@ def _calculate_overall_assessment(
     # combined.summary_note is an explanatory basis note for report/UI only.
     # It is not itself a design warning and must not drive the overall status.
     if torsion_results.enabled and torsion_results.warnings:
-        requirement_issues.extend(torsion_results.warnings)
+        requirement_issues.extend(
+            warning for warning in torsion_results.warnings if _is_requirement_torsion_warning(warning)
+        )
     if design_inputs.consider_deflection and deflection_results.status == "FAIL":
         requirement_issues.append(deflection_results.pass_fail_summary)
     if requirement_issues:
@@ -1290,8 +1342,10 @@ def _flexural_as_clause_reference(design_code: DesignCode) -> str:
 
 
 def _shear_strength_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
-        return f"{_design_code_label(design_code)} 11.3 and 11.4"
+    if design_code == DesignCode.ACI318_99:
+        return "ACI 318-99 11.3 together with 11.5"
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.2 together with 11.4"
     if design_code == DesignCode.ACI318_14:
         return "ACI 318-14 22.5.5.1 and 9.7.6.2"
     if design_code == DesignCode.ACI318_19:
@@ -1300,8 +1354,10 @@ def _shear_strength_clause_reference(design_code: DesignCode) -> str:
 
 
 def _shear_reinforcement_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
-        return f"{_design_code_label(design_code)} 11.4.7.2"
+    if design_code == DesignCode.ACI318_99:
+        return "ACI 318-99 11.5.4 and 11.5.6"
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.4.5 and 11.4.7"
     if design_code == DesignCode.ACI318_14:
         return "ACI 318-14 Chapter 9 and Chapter 22 beam shear-strength limits"
     if design_code == DesignCode.ACI318_19:
@@ -1310,8 +1366,10 @@ def _shear_reinforcement_clause_reference(design_code: DesignCode) -> str:
 
 
 def _shear_minimum_clause_reference(design_code: DesignCode) -> str:
-    if design_code in {DesignCode.ACI318_99, DesignCode.ACI318_08, DesignCode.ACI318_11}:
-        return f"{_design_code_label(design_code)} 11.4.6.3"
+    if design_code == DesignCode.ACI318_99:
+        return "ACI 318-99 11.5.5.1 and 11.5.5.3"
+    if design_code in {DesignCode.ACI318_08, DesignCode.ACI318_11}:
+        return f"{_design_code_label(design_code)} 11.4.6.1 and 11.4.6.3"
     return f"{_design_code_label(design_code)} 9.6.3"
 
 
@@ -1429,6 +1487,15 @@ def _formalize_torsion_warning(message: str, torsion_results: TorsionDesignResul
     if "alternative torsion design procedure" in normalized:
         return f"{normalized}. This is an informational code note and not a design failure."
     return f"{normalized}."
+
+
+def _is_requirement_torsion_warning(message: str) -> bool:
+    normalized = message.strip()
+    informational_markers = (
+        "Compatibility torsion is evaluated",
+        "alternative torsion design procedure",
+    )
+    return not any(marker in normalized for marker in informational_markers)
 
 
 def _formalize_general_warning(message: str, design_code: DesignCode) -> str:

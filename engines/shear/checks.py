@@ -6,6 +6,7 @@ def build_shear_review_note(
     av_cm2: float,
     av_min_cm2: float,
     design_code_label: str,
+    minimum_reinforcement_required: bool,
     provided_spacing_cm: float,
     required_spacing_cm: float,
     section_change_required: bool,
@@ -27,19 +28,18 @@ def build_shear_review_note(
         review_notes.append(
             f"Provided spacing {provided_spacing_cm:.2f} cm exceeds required spacing {required_spacing_cm:.2f} cm."
         )
-    if av_cm2 < av_min_cm2 - 1e-9:
+    if minimum_reinforcement_required and av_cm2 < av_min_cm2 - 1e-9:
         review_notes.append(
             f"Av = {av_cm2:.3f} cm2 is less than Av,min = {av_min_cm2:.3f} cm2."
         )
-        if design_code_label == "ACI318-19":
+        if design_code_label in {"ACI318-19", "ACI318-25"}:
             review_notes.append(
-                f"ACI 318-19 size effect factor lambda_s = {size_effect_factor:.3f} was applied to Vc."
+                f"{design_code_label.replace('ACI', 'ACI ')} size effect factor lambda_s = {size_effect_factor:.3f} was applied to Vc."
             )
     if vc_capped_by_max and vc_max_kg is not None:
         review_notes.append(
-            f"ACI 318-19 Vc was limited to Vc,max = {vc_max_kg:.3f} kg."
+            f"{design_code_label.replace('ACI', 'ACI ')} Vc was limited to Vc,max = {vc_max_kg:.3f} kg."
         )
     if vs_provided_kg > vs_max_kg + 1e-9:
         review_notes.append("Provided stirrup spacing gives Vs above Vs,max; PhiVn is capped at the section shear limit.")
     return " ".join(review_notes)
-

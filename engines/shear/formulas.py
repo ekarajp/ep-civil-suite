@@ -21,6 +21,10 @@ import math
 from engines.common import DesignCode
 from engines.common.units import safe_divide
 
+KSC_TO_MPA = 9.80665 / 100.0
+CM_TO_MM = 10.0
+KGF_TO_NEWTON = 9.80665
+
 
 def calculate_shear_phi(design_code: DesignCode) -> float:
     """Return phi for member shear and torsion strength checks."""
@@ -52,3 +56,42 @@ def calculate_av_min_per_spacing_cm(sqrt_fc: float, width_cm: float, fy_ksc: flo
         safe_divide(0.2 * sqrt_fc * width_cm, fy_ksc),
         safe_divide(3.5 * width_cm, fy_ksc),
     )
+
+
+def calculate_minimum_shear_reinforcement_trigger_kg(
+    design_code: DesignCode,
+    *,
+    concrete_strength_ksc: float,
+    phi_shear: float,
+    phi_vc_kg: float,
+    width_cm: float,
+    d_cm: float,
+    lambda_concrete: float = 1.0,
+) -> float:
+    """Return the shear-demand threshold above which Av,min is required.
+
+    The supported beam scope uses the general nonprestressed-beam trigger only:
+    - ACI 318-99/08/11/14: Vu > 0.5 * phi * Vc
+    - ACI 318-19/25: Vu > phi * 0.083 * lambda * sqrt(fc') * bw * d
+      using SI units from Section 9.6.3.1
+    """
+    if design_code in {
+        DesignCode.ACI318_99,
+        DesignCode.ACI318_08,
+        DesignCode.ACI318_11,
+        DesignCode.ACI318_14,
+    }:
+        return 0.5 * phi_vc_kg
+
+    concrete_strength_mpa = concrete_strength_ksc * KSC_TO_MPA
+    width_mm = width_cm * CM_TO_MM
+    d_mm = d_cm * CM_TO_MM
+    trigger_force_n = (
+        phi_shear
+        * 0.083
+        * lambda_concrete
+        * math.sqrt(concrete_strength_mpa)
+        * width_mm
+        * d_mm
+    )
+    return trigger_force_n / KGF_TO_NEWTON

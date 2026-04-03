@@ -3,6 +3,9 @@ import pytest
 from apps.rc_beam.formulas import (
     _auto_select_spacing_cm,
     _combined_shear_torsion_cross_section_clause,
+    _shear_minimum_clause_reference,
+    _shear_reinforcement_clause_reference,
+    _shear_strength_clause_reference,
     _torsion_cross_section_clause_reference,
     _torsion_spacing_clause_reference,
     calculate_beam_geometry,
@@ -15,6 +18,7 @@ from apps.rc_beam.formulas import (
     flexural_phi_chart_points,
 )
 from apps.rc_beam.report_builder import build_report_sections
+from apps.rc_beam.report_builder import build_print_report_sections
 from apps.rc_beam.models import (
     BeamBehaviorMode,
     BeamDesignInputSet,
@@ -197,7 +201,8 @@ def test_auto_beam_behavior_defaults_to_compression_ignored_mode_when_contributi
     assert results.beam_behavior_mode == BeamBehaviorMode.AUTO.value
     assert results.effective_beam_behavior == BeamBehaviorMode.SINGLY.value
     assert results.auto_result == BeamBehaviorMode.SINGLY.value
-    assert results.behavior_contribution_ratio_r == pytest.approx(0.0)
+    assert results.behavior_contribution_ratio_r > 0.0
+    assert results.behavior_contribution_ratio_r < results.behavior_threshold_r
     assert results.behavior_threshold_r == pytest.approx(0.05)
 
 
@@ -525,6 +530,55 @@ def test_report_builder_uses_strain_compatibility_equation_for_et() -> None:
     assert " - " in et_row.substitution
 
 
+def test_report_builder_marks_doubly_flexure_rows_as_compatibility_based() -> None:
+    inputs = _heavy_beam_behavior_inputs(BeamBehaviorMode.DOUBLY)
+    results = calculate_full_design_results(inputs)
+    sections = build_report_sections(inputs, results)
+    positive_section = next(section for section in sections if section.title == "Positive Moment Design")
+    mn_row = next(row for row in positive_section.rows if row.variable == "Mn")
+
+    assert results.positive_bending.effective_beam_behavior == BeamBehaviorMode.DOUBLY.value
+    assert "compatibility" in mn_row.equation.lower()
+
+
+def test_print_report_marks_doubly_flexure_summary_as_compatibility_based() -> None:
+    inputs = _heavy_beam_behavior_inputs(BeamBehaviorMode.DOUBLY)
+    results = calculate_full_design_results(inputs)
+    sections = build_print_report_sections(inputs, results)
+    positive_section = next(section for section in sections if section.title == "Positive Moment Design")
+    mn_row = positive_section.rows[-1]
+
+    assert "compatibility" in mn_row.equation.lower()
+
+
+def test_dt_uses_extreme_tension_bar_diameter_when_group_b_is_larger() -> None:
+    inputs = BeamDesignInputSet(
+        positive_bending=PositiveBendingInput(
+            tension_reinforcement=ReinforcementArrangementInput(
+                layer_1=RebarLayerInput(
+                    group_a=RebarGroupInput(diameter_mm=16, count=2),
+                    group_b=RebarGroupInput(diameter_mm=25, count=1),
+                ),
+            ),
+        )
+    )
+
+    results = calculate_positive_bending_design(
+        inputs.materials,
+        inputs.geometry,
+        inputs.positive_bending,
+        inputs,
+    )
+
+    expected_dt_cm = (
+        inputs.geometry.depth_cm
+        - inputs.geometry.cover_cm
+        - (inputs.shear.stirrup_diameter_mm / 10.0)
+        - (25 / 20.0)
+    )
+    assert results.dt_cm == pytest.approx(expected_dt_cm)
+
+
 def test_auto_spacing_is_not_reduced_below_5_cm() -> None:
     assert _auto_select_spacing_cm(4.2) == pytest.approx(5.0)
     assert _auto_select_spacing_cm(2.5) == pytest.approx(5.0)
@@ -641,8 +695,41 @@ def test_material_property_manual_overrides_apply_independently() -> None:
 
 
 def test_formula_warning_clause_helpers_use_verified_references() -> None:
+    assert _shear_strength_clause_reference(DesignCode.ACI318_99) == "ACI 318-99 11.3 together with 11.5"
+    assert _shear_strength_clause_reference(DesignCode.ACI318_11) == "ACI 318-11 11.2 together with 11.4"
+    assert _shear_reinforcement_clause_reference(DesignCode.ACI318_99) == "ACI 318-99 11.5.4 and 11.5.6"
+    assert _shear_minimum_clause_reference(DesignCode.ACI318_99) == "ACI 318-99 11.5.5.1 and 11.5.5.3"
+    assert _shear_minimum_clause_reference(DesignCode.ACI318_11) == "ACI 318-11 11.4.6.1 and 11.4.6.3"
     assert _torsion_spacing_clause_reference("ACI 318-14") == "ACI 318-14 9.7.6.3.3"
     assert _torsion_spacing_clause_reference("ACI 318-19") == "ACI 318-19 9.7.6.3.3"
     assert _torsion_cross_section_clause_reference("ACI 318-14") == "ACI 318-14 22.7.7.1"
     assert _torsion_cross_section_clause_reference("ACI 318-19") == "ACI 318-19 22.7.7.1"
     assert _combined_shear_torsion_cross_section_clause(DesignCode.ACI318_11) == "ACI 318-11 11.5.3.1"
+
+
+def test_alternative_torsion_procedure_note_does_not_downgrade_overall_status() -> None:
+    inputs = BeamDesignInputSet(
+        beam_type=BeamType.SIMPLE,
+        torsion=TorsionDesignInput(
+            enabled=True,
+            factored_torsion_kgfm=1200.0,
+            design_code=TorsionDesignCode.ACI318_19,
+            demand_type=TorsionDemandType.EQUILIBRIUM,
+            provided_longitudinal_steel_cm2=8.0,
+        ),
+    )
+    inputs.geometry.width_cm = 20.0
+    inputs.geometry.depth_cm = 70.0
+    inputs.positive_bending.factored_moment_kgm = 0.0
+    inputs.shear.factored_shear_kg = 0.0
+    inputs.positive_bending.tension_reinforcement = ReinforcementArrangementInput(
+        layer_1=RebarLayerInput(
+            group_a=RebarGroupInput(diameter_mm=20, count=2),
+            group_b=RebarGroupInput(),
+        )
+    )
+
+    results = calculate_full_design_results(inputs)
+
+    assert any("alternative torsion design procedure" in warning for warning in results.warnings)
+    assert results.overall_status == "PASS"

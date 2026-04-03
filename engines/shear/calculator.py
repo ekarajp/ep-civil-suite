@@ -13,6 +13,7 @@ from .formulas import (
     calculate_aci318_19_size_effect_factor,
     calculate_aci318_19_vc_max_kg,
     calculate_av_min_per_spacing_cm,
+    calculate_minimum_shear_reinforcement_trigger_kg,
     calculate_shear_phi,
 )
 from .inputs import ShearBeamInput, ShearDesignResult
@@ -131,9 +132,22 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
                 nominal_vs_required_kg,
                 s_max_from_vs_cm,
                 required_spacing_cm,
-                provided_spacing_cm,
-            ) = _calculate_shear_state(vc_kg)
-            av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
+            provided_spacing_cm,
+        ) = _calculate_shear_state(vc_kg)
+        av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
+
+    minimum_reinforcement_trigger_kg = calculate_minimum_shear_reinforcement_trigger_kg(
+        input_data.design_code,
+        concrete_strength_ksc=input_data.materials.concrete_strength_ksc,
+        phi_shear=phi_shear,
+        phi_vc_kg=phi_vc_kg,
+        width_cm=input_data.geometry.width_cm,
+        d_cm=d_plus_cm,
+    )
+    minimum_reinforcement_required = input_data.factored_shear_kg > minimum_reinforcement_trigger_kg + 1e-9
+    if not minimum_reinforcement_required and phi_vs_required_kg <= 1e-9:
+        required_spacing_cm = provided_spacing_cm
+        av_min_cm2 = av_min_per_spacing_cm * provided_spacing_cm
 
     vs_provided_kg = safe_divide(
         av_cm2 * input_data.materials.shear_steel_yield_ksc * d_plus_cm,
@@ -162,6 +176,7 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
         av_cm2=av_cm2,
         av_min_cm2=av_min_cm2,
         design_code_label=input_data.design_code.value,
+        minimum_reinforcement_required=minimum_reinforcement_required,
         provided_spacing_cm=provided_spacing_cm,
         required_spacing_cm=required_spacing_cm,
         section_change_required=section_change_required,
@@ -186,6 +201,8 @@ def design_shear_beam(input_data: ShearBeamInput) -> ShearDesignResult:
         nominal_vs_required_kg=nominal_vs_required_kg,
         av_cm2=av_cm2,
         av_min_cm2=av_min_cm2,
+        minimum_reinforcement_trigger_kg=minimum_reinforcement_trigger_kg,
+        minimum_reinforcement_required=minimum_reinforcement_required,
         size_effect_factor=size_effect_factor,
         size_effect_applied=size_effect_applied,
         s_max_from_av_cm=s_max_from_av_cm,

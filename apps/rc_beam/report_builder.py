@@ -7,7 +7,7 @@ from design.torsion.torsion_units import mm2_to_cm2, mm_to_cm
 from core.theme import ThemePalette
 from core.utils import format_number, format_ratio, longitudinal_bar_mark, stirrup_bar_mark
 
-from .models import BeamDesignInputSet, BeamDesignResults, ReinforcementArrangementInput, VerificationStatus
+from .models import BeamBehaviorMode, BeamDesignInputSet, BeamDesignResults, ReinforcementArrangementInput, VerificationStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +45,43 @@ class SummaryReportData:
     conclusion: str
 
 
+def _moment_capacity_row_content(
+    flexural_result,
+    *,
+    default_equation: str,
+    default_substitution: str,
+) -> tuple[str, str]:
+    if getattr(flexural_result, "effective_beam_behavior", "") == BeamBehaviorMode.DOUBLY.value:
+        return (
+            "Full-section strain compatibility result",
+            "Compatibility-based full-section flexural strength using bar depths measured from the compression face",
+        )
+    return default_equation, default_substitution
+
+
+def _moment_capacity_summary_equation(flexural_result, default_equation: str) -> str:
+    if getattr(flexural_result, "effective_beam_behavior", "") == BeamBehaviorMode.DOUBLY.value:
+        return "Full-section compatibility Mn, phiMn"
+    return default_equation
+
+
+def _with_updated_moment_summary_row(section: ReportSection, flexural_result) -> ReportSection:
+    rows = list(section.rows)
+    if not rows:
+        return section
+    last_row = rows[-1]
+    rows[-1] = ReportRow(
+        variable=last_row.variable,
+        equation=_moment_capacity_summary_equation(flexural_result, last_row.equation),
+        substitution=last_row.substitution,
+        result=last_row.result,
+        units=last_row.units,
+        status=last_row.status,
+        note=last_row.note,
+    )
+    return ReportSection(title=section.title, rows=rows)
+
+
 def build_report_sections(inputs: BeamDesignInputSet, results: BeamDesignResults) -> list[ReportSection]:
     sections = [
         _build_input_summary(inputs),
@@ -52,8 +89,9 @@ def build_report_sections(inputs: BeamDesignInputSet, results: BeamDesignResults
         _build_geometry_section(inputs, results),
         _build_positive_section(inputs, results),
     ]
+    sections[3] = _with_updated_moment_summary_row(sections[3], results.positive_bending)
     if inputs.has_negative_design and results.negative_bending is not None:
-        sections.append(_build_negative_section(inputs, results))
+        sections.append(_with_updated_moment_summary_row(_build_negative_section(inputs, results), results.negative_bending))
     sections.append(_build_shear_section(inputs, results))
     if inputs.torsion.enabled:
         sections.append(_build_torsion_section(inputs, results))
@@ -130,7 +168,7 @@ def build_print_report_sections(inputs: BeamDesignInputSet, results: BeamDesignR
                     ReportRow("Tension Reinforcement", "Top bars", _format_arrangement(inputs.negative_bending.tension_reinforcement, inputs.materials.main_steel_yield_ksc), _format_arrangement(inputs.negative_bending.tension_reinforcement, inputs.materials.main_steel_yield_ksc), "-"),
                     ReportRow("Compression Reinforcement", "Bottom bars", _format_arrangement(inputs.negative_bending.compression_reinforcement, inputs.materials.main_steel_yield_ksc), _format_arrangement(inputs.negative_bending.compression_reinforcement, inputs.materials.main_steel_yield_ksc), "-", note="Bottom bars"),
                     ReportRow("As req. / prov.", "rho_req * b * d-, sum(bar areas)", "Negative bending", f"{format_number(results.negative_bending.as_required_cm2)} / {format_number(results.negative_bending.as_provided_cm2)}", "cm2", results.negative_bending.as_status),
-                    ReportRow("Mn / phiMn", "As * fy * (d- - a/2), phi*Mn", "Negative bending", f"{format_number(results.negative_bending.mn_kgm)} / {format_number(results.negative_bending.phi_mn_kgm)}", "kg-m", results.negative_bending.design_status),
+                    ReportRow("Mn / phiMn", _moment_capacity_summary_equation(results.negative_bending, "As * fy * (d- - a/2), phi*Mn"), "Negative bending", f"{format_number(results.negative_bending.mn_kgm)} / {format_number(results.negative_bending.phi_mn_kgm)}", "kg-m", results.negative_bending.design_status),
                 ],
             )
         )
@@ -152,6 +190,9 @@ def build_print_report_sections(inputs: BeamDesignInputSet, results: BeamDesignR
     if inputs.consider_deflection:
         sections.append(_build_print_deflection_section(results))
     sections.append(_build_print_design_summary(inputs, results))
+    sections[3] = _with_updated_moment_summary_row(sections[3], results.positive_bending)
+    if inputs.has_negative_design and results.negative_bending is not None:
+        sections[4] = _with_updated_moment_summary_row(sections[4], results.negative_bending)
     return sections
 
 
@@ -1398,6 +1439,14 @@ def _build_geometry_section(inputs: BeamDesignInputSet, results: BeamDesignResul
 
 def _build_positive_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
     positive = results.positive_bending
+    mn_equation, mn_substitution = _moment_capacity_row_content(
+        positive,
+        default_equation="As * fy * (d - a/2) / 100",
+        default_substitution=(
+            f"{format_number(positive.as_provided_cm2)} * {format_number(inputs.materials.main_steel_yield_ksc)} "
+            f"* ({format_number(results.beam_geometry.d_plus_cm)} - {format_number(positive.a_cm)}/2) / 100"
+        ),
+    )
     return ReportSection(
         title="Positive Moment Design",
         rows=[
@@ -1418,7 +1467,7 @@ def _build_positive_section(inputs: BeamDesignInputSet, results: BeamDesignResul
             ReportRow("dt", "h - cover - stirrup - db/2", f"{format_number(inputs.geometry.depth_cm)} - {format_number(inputs.geometry.cover_cm)} - {format_number(inputs.shear.stirrup_diameter_mm / 10)} - db/2", format_number(positive.dt_cm), "cm"),
             ReportRow("ety", "fy / Es", f"{format_number(inputs.materials.main_steel_yield_ksc)} / {format_number(results.materials.es_ksc)}", format_ratio(positive.ety, 6), "-"),
             ReportRow("et", "ecu * (dt - c) / c", f"0.003 * ({format_number(positive.dt_cm)} - {format_number(positive.c_cm)}) / {format_number(positive.c_cm)}", format_ratio(positive.et, 6), "-"),
-            ReportRow("Mn", "As * fy * (d - a/2) / 100", f"{format_number(positive.as_provided_cm2)} * {format_number(inputs.materials.main_steel_yield_ksc)} * ({format_number(results.beam_geometry.d_plus_cm)} - {format_number(positive.a_cm)}/2) / 100", format_number(positive.mn_kgm), "kg-m"),
+            ReportRow("Mn", mn_equation, mn_substitution, format_number(positive.mn_kgm), "kg-m"),
             ReportRow("phiMn", "phi * Mn", f"{positive.phi:.3f} * {positive.mn_kgm:.2f}", format_number(positive.phi_mn_kgm), "kg-m", positive.ratio_status),
             ReportRow("Moment capacity ratio", "Mu / PhiMn", f"{format_number(inputs.positive_bending.factored_moment_kgm)} / {format_number(positive.phi_mn_kgm)}", format_ratio(positive.ratio), "-", positive.design_status),
         ],
@@ -1438,8 +1487,8 @@ def _build_shear_section(inputs: BeamDesignInputSet, results: BeamDesignResults)
             ReportRow("phiVs required", "Vu - phiVc", f"{format_number(inputs.shear.factored_shear_kg)} - {format_number(shear.phi_vc_kg)}", format_number(shear.phi_vs_required_kg), "kg"),
             ReportRow("Vs required", "phiVs required / phi", f"{format_number(shear.phi_vs_required_kg)} / {format_ratio(shear.phi, 3)}", format_number(shear.nominal_vs_required_kg), "kg"),
             ReportRow("Av", "pi * db^2 / 4 * legs", f"db={inputs.shear.stirrup_diameter_mm}, legs={inputs.shear.legs_per_plane}", format_number(shear.av_cm2), "cm2"),
-            ReportRow("Av,min", "Minimum stirrup area at provided spacing", f"s = {format_number(shear.provided_spacing_cm)}", format_number(shear.av_min_cm2), "cm2", shear.design_status if shear.av_cm2 < shear.av_min_cm2 else None),
-            ReportRow("Size effect", "ACI 318-19/25 lambda_s", "Applied to Vc when Av < Av,min" if shear.size_effect_applied else "Not applied", format_ratio(shear.size_effect_factor, 3), "-", shear.design_status if shear.size_effect_applied else None),
+            ReportRow("Av,min", "Minimum stirrup area at provided spacing", f"s = {format_number(shear.provided_spacing_cm)}", format_number(shear.av_min_cm2), "cm2", shear.design_status if shear.minimum_reinforcement_required and shear.av_cm2 < shear.av_min_cm2 else None),
+            ReportRow("Size effect", "ACI 318-19/25 lambda_s", "Applied to Vc when Av < Av,min" if shear.size_effect_applied else "Not applied", format_ratio(shear.size_effect_factor, 3), "-", shear.design_status if shear.minimum_reinforcement_required and shear.size_effect_applied else None),
             ReportRow("s max from Av", "min(Av*fvy/(0.2*sqrt(fc')*b), Av*fvy/(3.5*b))", "Current spacing limit", format_number(shear.s_max_from_av_cm), "cm"),
             ReportRow("s max from Vs", "Code-style spacing limit", "Current branch logic", format_number(shear.s_max_from_vs_cm), "cm"),
             ReportRow("Required spacing", "min(s strength, s max from Av, s max from Vs)", "Governing required spacing", format_number(shear.required_spacing_cm), "cm"),
@@ -1503,6 +1552,14 @@ def _build_negative_section(inputs: BeamDesignInputSet, results: BeamDesignResul
         raise ValueError("Negative moment report section requested for a simple beam result.")
     d_minus_cm = results.beam_geometry.d_minus_cm
     d_minus_text = format_number(d_minus_cm) if d_minus_cm is not None else "N/A"
+    mn_equation, mn_substitution = _moment_capacity_row_content(
+        negative,
+        default_equation="As * fy * (d- - a/2) / 100",
+        default_substitution=(
+            f"{format_number(negative.as_provided_cm2)} * {format_number(inputs.materials.main_steel_yield_ksc)} "
+            f"* ({d_minus_text} - {format_number(negative.a_cm)}/2) / 100"
+        ),
+    )
     return ReportSection(
         title="Negative Moment Design",
         rows=[
@@ -1519,7 +1576,7 @@ def _build_negative_section(inputs: BeamDesignInputSet, results: BeamDesignResul
             ReportRow("a", "As * fy / (0.85 * fc' * b)", "Negative bending", format_number(negative.a_cm), "cm"),
             ReportRow("c", "a / beta1", "Negative bending", format_number(negative.c_cm), "cm"),
             ReportRow("et", "ecu * (dt - c) / c", f"0.003 * ({format_number(negative.dt_cm)} - {format_number(negative.c_cm)}) / {format_number(negative.c_cm)}", format_ratio(negative.et, 6), "-"),
-            ReportRow("Mn", "As * fy * (d- - a/2) / 100", f"{format_number(negative.as_provided_cm2)} * {format_number(inputs.materials.main_steel_yield_ksc)} * ({d_minus_text} - {format_number(negative.a_cm)}/2) / 100", format_number(negative.mn_kgm), "kg-m"),
+            ReportRow("Mn", mn_equation, mn_substitution, format_number(negative.mn_kgm), "kg-m"),
             ReportRow("phiMn", "phi * Mn", f"{negative.phi:.3f} * {negative.mn_kgm:.2f}", format_number(negative.phi_mn_kgm), "kg-m", negative.ratio_status),
         ],
     )
@@ -1691,6 +1748,14 @@ def _build_full_geometry_section(inputs: BeamDesignInputSet, results: BeamDesign
 
 def _build_full_positive_section(inputs: BeamDesignInputSet, results: BeamDesignResults) -> ReportSection:
     positive = results.positive_bending
+    mn_equation, mn_substitution = _moment_capacity_row_content(
+        positive,
+        default_equation=f"{_sym_mn()} = A<sub>s</sub>{_sym_fy()}(d - a/2) / 100",
+        default_substitution=(
+            f"{_sym_mn()} = {format_number(positive.as_provided_cm2)} &times; {format_number(inputs.materials.main_steel_yield_ksc)} "
+            f"&times; ({format_number(results.beam_geometry.d_plus_cm)} - {format_number(positive.a_cm)}/2) / 100"
+        ),
+    )
     return ReportSection(
         title="Positive Moment Design",
         rows=[
@@ -1712,7 +1777,7 @@ def _build_full_positive_section(inputs: BeamDesignInputSet, results: BeamDesign
             ReportRow("d<sub>t</sub>", "-", f"d<sub>t</sub> = {format_number(positive.dt_cm)} cm", format_number(positive.dt_cm), "cm"),
             ReportRow("&epsilon;<sub>y</sub>", f"&epsilon;<sub>y</sub> = {_sym_fy()} / {_sym_es()}", f"&epsilon;<sub>y</sub> = {format_number(inputs.materials.main_steel_yield_ksc)} / {format_number(results.materials.es_ksc)}", format_ratio(positive.ety, 6), "-"),
             ReportRow("&epsilon;<sub>t</sub>", "&epsilon;<sub>t</sub> = 0.003(d<sub>t</sub> - c) / c", f"&epsilon;<sub>t</sub> = 0.003({format_number(positive.dt_cm)} - {format_number(positive.c_cm)}) / {format_number(positive.c_cm)}", format_ratio(positive.et, 6), "-"),
-            ReportRow(_sym_mn(), f"{_sym_mn()} = A<sub>s</sub>{_sym_fy()}(d - a/2) / 100", f"{_sym_mn()} = {format_number(positive.as_provided_cm2)} &times; {format_number(inputs.materials.main_steel_yield_ksc)} &times; ({format_number(results.beam_geometry.d_plus_cm)} - {format_number(positive.a_cm)}/2) / 100", format_number(positive.mn_kgm), "kg-m"),
+            ReportRow(_sym_mn(), mn_equation, mn_substitution, format_number(positive.mn_kgm), "kg-m"),
             ReportRow(_sym_phi_mn(), f"{_sym_phi_mn()} = &phi;{_sym_mn()}", f"{_sym_phi_mn()} = {format_ratio(positive.phi, 3)} &times; {format_number(positive.mn_kgm)}", format_number(positive.phi_mn_kgm), "kg-m", positive.ratio_status),
             ReportRow(f"M<sub>u</sub> / {_sym_phi_mn()}", "-", f"{format_number(inputs.positive_bending.factored_moment_kgm)} / {format_number(positive.phi_mn_kgm)}", format_ratio(positive.ratio), "-", positive.design_status),
         ],
@@ -1813,6 +1878,14 @@ def _build_full_negative_section(inputs: BeamDesignInputSet, results: BeamDesign
         raise ValueError("Negative moment report section requested for a simple beam result.")
     d_minus_cm = results.beam_geometry.d_minus_cm
     d_minus_text = format_number(d_minus_cm) if d_minus_cm is not None else "N/A"
+    mn_equation, mn_substitution = _moment_capacity_row_content(
+        negative,
+        default_equation="M<sub>n,neg</sub> = A<sub>s</sub>f<sub>y</sub>(d<sub>neg</sub> - a/2) / 100",
+        default_substitution=(
+            f"M<sub>n,neg</sub> = {format_number(negative.as_provided_cm2)} &times; {format_number(inputs.materials.main_steel_yield_ksc)} "
+            f"&times; ({d_minus_text} - {format_number(negative.a_cm)}/2) / 100"
+        ),
+    )
     return ReportSection(
         title="Negative Moment Design",
         rows=[
@@ -1830,7 +1903,7 @@ def _build_full_negative_section(inputs: BeamDesignInputSet, results: BeamDesign
             ReportRow("a", "-", f"a = {format_number(negative.a_cm)} cm", format_number(negative.a_cm), "cm"),
             ReportRow("c", f"c = a / {_sym_beta1()}", f"c = {format_number(negative.a_cm)} / {format_ratio(results.materials.beta_1, 4)}", format_number(negative.c_cm), "cm"),
             ReportRow("&epsilon;<sub>t,neg</sub>", "&epsilon;<sub>t,neg</sub> = 0.003(d<sub>t</sub> - c) / c", f"&epsilon;<sub>t,neg</sub> = 0.003({format_number(negative.dt_cm)} - {format_number(negative.c_cm)}) / {format_number(negative.c_cm)}", format_ratio(negative.et, 6), "-"),
-            ReportRow("M<sub>n,neg</sub>", "M<sub>n,neg</sub> = A<sub>s</sub>f<sub>y</sub>(d<sub>neg</sub> - a/2) / 100", f"M<sub>n,neg</sub> = {format_number(negative.as_provided_cm2)} &times; {format_number(inputs.materials.main_steel_yield_ksc)} &times; ({d_minus_text} - {format_number(negative.a_cm)}/2) / 100", format_number(negative.mn_kgm), "kg-m"),
+            ReportRow("M<sub>n,neg</sub>", mn_equation, mn_substitution, format_number(negative.mn_kgm), "kg-m"),
             ReportRow("&phi;M<sub>n,neg</sub>", "&phi;M<sub>n,neg</sub> = &phi; &times; M<sub>n,neg</sub>", f"&phi;M<sub>n,neg</sub> = {format_ratio(negative.phi, 3)} &times; {format_number(negative.mn_kgm)}", format_number(negative.phi_mn_kgm), "kg-m", negative.ratio_status),
             ReportRow("M<sub>u,neg</sub> / &phi;M<sub>n,neg</sub>", "-", f"{format_number(inputs.negative_bending.factored_moment_kgm)} / {format_number(negative.phi_mn_kgm)}", format_ratio(negative.ratio), "-", negative.design_status),
         ],
@@ -2345,21 +2418,33 @@ def _beam_behavior_report_text(results) -> str:
         classification_text = f"Effective {results.effective_beam_behavior}"
     ratio_text = f"R {format_number(results.behavior_contribution_ratio_r * 100.0)}%"
     threshold_text = f"Threshold {format_number(results.behavior_threshold_r * 100.0)}%"
-    return " | ".join((mode_text, classification_text, ratio_text, threshold_text))
+    method_text = (
+        "Method full-section compatibility by bar depth"
+        if results.effective_beam_behavior == BeamBehaviorMode.DOUBLY.value
+        else "Method singly reinforced block"
+    )
+    return " | ".join((mode_text, classification_text, method_text, ratio_text, threshold_text))
 
 
 def _beam_behavior_sentence(results, *, prefix: str = "Beam behavior") -> str:
+    method_text = (
+        "The reported strength uses the full-section strain-compatibility branch with bar depths measured from the compression face."
+        if results.effective_beam_behavior == BeamBehaviorMode.DOUBLY.value
+        else "The reported strength uses the singly reinforced rectangular stress-block branch."
+    )
     if results.beam_behavior_mode == "Auto":
         return (
             f"{prefix} is set to Auto and classifies this section as "
             f"{results.auto_result or results.effective_beam_behavior}, based on "
             f"R = {format_number(results.behavior_contribution_ratio_r * 100.0)}% "
-            f"against a threshold of {format_number(results.behavior_threshold_r * 100.0)}%."
+            f"against a threshold of {format_number(results.behavior_threshold_r * 100.0)}%. "
+            f"{method_text}"
         )
     return (
         f"{prefix} is set to {results.beam_behavior_mode}, so the flexural check uses "
         f"{results.effective_beam_behavior} behavior with "
-        f"R = {format_number(results.behavior_contribution_ratio_r * 100.0)}%."
+        f"R = {format_number(results.behavior_contribution_ratio_r * 100.0)}%. "
+        f"{method_text}"
     )
 
 
